@@ -1,0 +1,26 @@
+{
+  "name": "ai-powered-study-guide-engr-102",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BenHoang63/AI-Powered-Study-Guide-ENGR-102.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/BenHoang63/AI-Powered-Study-Guide-ENGR-102/issues"
+  },
+  "homepage": "https://github.com/BenHoang63/AI-Powered-Study-Guide-ENGR-102#readme",
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "pg": "^8.20.0"
+  }
+}
