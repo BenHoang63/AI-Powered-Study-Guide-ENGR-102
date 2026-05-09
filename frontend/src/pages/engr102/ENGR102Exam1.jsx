@@ -2,7 +2,7 @@ import { authClient } from '../../scripts/auth';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-const ENGR102Home = () => {
+const ENGR102Exam1 = () => {
 
     const [user, setUser] = useState(null);
     const [error, setError] = useState(null);
@@ -27,35 +27,25 @@ const ENGR102Home = () => {
             }
         });
     }, []);
-
     return (
         <>
-            <header id="center" style={{ textAlign: "center", margin: "auto" }}>
-                <h1>ENGR 102</h1>
+
+            <header id="center" style={{ textAlign: "center", margin: "auto"}}>
+                <h1>Exam 1 Practice</h1>
                 <style>{`
-                    button {
-                        padding: 10%; 
-                        margin: 5%;
-                        cursor: pointer;
+                    .definition {
+                        font-weight: bold;
+                        text-decoration: underline;
+                    }
+                    .code {
+                        background-color: #f4f4f4a0;
+                        border-radius: 5px;
+                        padding: 2px 5px;
                     }
                 `}</style>
             </header>
-
-            <section id="center">
-                <div style={{
-                    padding: "auto",
-                    textAlign: "center",
-                    width: "25%",
-                    margin: "auto"
-                }}>
-                    <h3>Select Topic</h3>
-                    <button onClick={() => { navigate('/engr102/module1'); }}>Module 1 : Intro to Computing & Python</button>
-                    <button onClick={() => { navigate('/engr102/module2'); }}>Module 2 : Variables & Expressions</button>
-                    <button onClick={() => { navigate('/engr102/module3'); }}>Module 3 : Types & Strings</button>
-                </div>
-            </section>
         </>
     );
-};
 
-export default ENGR102Home;
+}
+export default ENGR102Exam1;

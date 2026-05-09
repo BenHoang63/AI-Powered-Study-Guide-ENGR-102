@@ -15,8 +15,6 @@ const HomePage = () => {
                 // Check if TAMU email
                 if (data.user.email?.includes("@tamu.edu")) {
                     setUser(data.user);
-                    // redirect user
-                    navigate('/home');
                     return;
                 } else {
                     // Not a TAMU student — sign them out
@@ -39,6 +37,13 @@ const HomePage = () => {
                 <button onClick={() => { authClient.signOut(); navigate('/'); }}>Sign Out</button>
                 <br></br>
                 <br></br>
+                <style>{`
+                    section div button {
+                        padding: 10%; 
+                        margin: 5%;
+                        cursor: pointer;
+                    }
+                `}</style>
             </div>
 
             <section id="center">
@@ -49,8 +54,8 @@ const HomePage = () => {
                     margin: "auto"
                 }}>
                     <h3>Select Topic</h3>
-                    <button style={{ padding: '10%', margin: '5%'}}>ENGR 102</button>
-                    <button style={{ padding: '10%', margin: '5%'}}>ETAM</button>
+                    <button onClick={() => { navigate('/engr102'); }}>ENGR 102</button>
+                    <button>ETAM</button>
                 </div>
             </section>
         </>
