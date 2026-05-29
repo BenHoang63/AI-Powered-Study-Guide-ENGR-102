@@ -30,7 +30,12 @@ const HomePage = () => {
 
     return (
         <>
-            <div>
+            <div style={{
+                    padding: "auto",
+                    textAlign: "center",
+                    width: "25%",
+                    margin: "auto"
+                }}>
                 <h1>Home</h1>
                 <h2>Welcome, {user?.name}!</h2>
                 <p>{user?.email}</p>

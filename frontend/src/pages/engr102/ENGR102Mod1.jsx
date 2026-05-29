@@ -1,6 +1,7 @@
 import { authClient } from '../../scripts/auth';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import '../../styles/styles.css';
 
 const ENGR102Mod1 = () => {
 
@@ -31,30 +32,6 @@ const ENGR102Mod1 = () => {
         <>
             <header id="center" style={{ textAlign: "center", margin: "auto"}}>
                 <h1>Module 1 : Introduction to Computing and Python</h1>
-                <style>{`
-                    .definition {
-                        font-weight: bold;
-                        text-decoration: underline;
-                    }
-                    .code {
-                        background-color: #9e9e9e99;
-                        border-radius: 5px;
-                        border-color: black;
-                        border-style: solid;
-                        border-width: thin;
-                        padding: 2px 5px;
-                        padding: 10px 15px;
-                        font-family: 'Courier New', Courier, monospace;
-                    }
-                    .block {
-                        display: block;
-                        margin-bottom: 10px;
-                        padding-left: 15px;
-                    }
-                    code {
-                        font-family: 'Courier New', Courier, monospace;
-                    }
-                `}</style>
             </header>
 
 
@@ -146,7 +123,7 @@ const ENGR102Mod1 = () => {
                             <p><a className='definition'>Resulting data type</a>: there are several rules about what data type you get when you 
                             do certain math operations.</p>
                             <ul>
-                                <li>Any operation involving a float (except for floor division) will result in a float.</li>
+                                <li>Any operation involving a float will result in a float.</li>
                                 <li>Division will always result in a float.</li>
                                 <li>Floor division will always result in an integer.</li>
                                 <li>Modulus with two integers will result in an integer, otherwise it will result in a float.</li>
@@ -172,6 +149,8 @@ const ENGR102Mod1 = () => {
                                 <li><a className="definition">sin(x), cos(x), tan(x)</a>: Computes the sine, cosine, and tangent of <code>x</code>, 
                                 respectively. </li>
                             </ul>
+                            <p><a className="definition">Note</a>: These functions will output a float, unless it is a function that
+                            rounds to a whole number (like <code>floor()</code>, <code>ceil()</code>, and <code>round()</code>). </p>
                             <p>--- insert example here ---</p>
                         </div>
                     </div>
