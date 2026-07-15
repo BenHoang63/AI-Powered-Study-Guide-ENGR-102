@@ -61,7 +61,7 @@ const ENGR102Mod1 = () => {
                             And most importantly, it helps build the foundational knowledge of problem solving that is needed in many
                             math-related courses and in your career.
                         </li>
-                    </ul><br></br>
+                    </ul>
 
                     <h3>Setting Up For the Course</h3>
                     <div className="block">
@@ -71,7 +71,6 @@ const ENGR102Mod1 = () => {
                         <p>Next, download <a href="https://www.python.org/" target="_blank" rel="noopener noreferrer">Python</a>. This is
                             the programming language we will use in the course.</p>
                     </div>
-                    <br></br>
 
                     <h2>The Print Statement</h2>
                     <div className="block">
@@ -89,9 +88,12 @@ const ENGR102Mod1 = () => {
                         </ul>
                         <p>Behold, the Python print statement!</p>
                         <div className="code">print()</div>
-                        <p>This will print whatever value is inside the parentheses, followed by a newline. 
-                            Also, if you want to print two or more values with the same print statement, you use a comma to separate them.</p>
-                        <p>--- insert example here ---</p><br></br>
+                        <p>This will print whatever value is inside the parentheses, followed by a newline.</p>
+                        <div className="code">
+                            print("Hello World")<br></br><br></br>
+                            <span className="comment"> # Output: Hello World</span>
+                        </div>
+                        <p>In this example, the <code>"Hello World"</code> is a string.</p>
                     </div>
 
 
@@ -128,10 +130,13 @@ const ENGR102Mod1 = () => {
                                 <li>Floor division will always result in an integer.</li>
                                 <li>Modulus with two integers will result in an integer, otherwise it will result in a float.</li>
                             </ul>
-                            <p>--- insert example here ---</p>
+                            <div className="code">
+                                10 / 2 <span className="comment"> # -&gt; 5.0</span><br></br>
+                                10 // 2 <span className="comment"> # -&gt; 5</span><br></br>
+                                10 % 3 <span className="comment"> # -&gt; 1</span><br></br>
+                            </div>
                         </div>
 
-                        <br></br>
 
                         <h3>The Math Module</h3>
                         <div className="block">
@@ -151,7 +156,10 @@ const ENGR102Mod1 = () => {
                             </ul>
                             <p><a className="definition">Note</a>: These functions will output a float, unless it is a function that
                             rounds to a whole number (like <code>floor()</code>, <code>ceil()</code>, and <code>round()</code>). </p>
-                            <p>--- insert example here ---</p>
+                            <div className="code">
+                                print(sqrt(4))<br></br><br></br>
+                                <span className="comment"> # Result: 2.0</span>
+                            </div>
                         </div>
                     </div>
                     

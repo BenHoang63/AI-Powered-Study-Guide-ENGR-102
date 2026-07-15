@@ -52,6 +52,15 @@ const ENGR102Home = () => {
                     <button onClick={() => { navigate('/engr102/module1'); }}>Module 1 : Intro to Computing & Python</button>
                     <button onClick={() => { navigate('/engr102/module2'); }}>Module 2 : Variables & Expressions</button>
                     <button onClick={() => { navigate('/engr102/module3'); }}>Module 3 : Types & Strings</button>
+                    <button onClick={() => { navigate('/engr102/module4'); }}>Module 4 : Boolean Expressions & Conditionals</button>
+                    <button onClick={() => { navigate('/engr102/module5'); }}>Module 5 : Program Design & Testing</button>
+                    <button onClick={() => { navigate('/engr102/module6'); }}>Module 6 : Loops</button>
+                    <button onClick={() => { navigate('/engr102/module7'); }}>Module 7 : Lists</button>
+                    <button onClick={() => { navigate('/engr102/module8'); }}>Module 8 : Top-Down Design & Dictionaries</button>
+                    <button onClick={() => { navigate('/engr102/module9'); }}>Module 9 : User-Designed Functions & Mutable/Immutable Data Types</button>
+                    <button onClick={() => { navigate('/engr102/module10'); }}>Module 10 : Exceptions & Errors</button>
+                    <button onClick={() => { navigate('/engr102/module11'); }}>Module 11 : Files</button>
+                    <button onClick={() => { navigate('/engr102/module12'); }}>Module 12 : Modules</button>
                 </div>
             </section>
         </>
