@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../../styles/styles.css';
 
+
 const ENGR102Mod11 = () => {
 
     const [user, setUser] = useState(null);
@@ -30,6 +31,7 @@ const ENGR102Mod11 = () => {
     }, []);
     return (
         <>
+
             
             <header id="center" style={{ textAlign: "center", margin: "auto"}}>
                 <h1>Module 11 : Files</h1>
@@ -39,7 +41,7 @@ const ENGR102Mod11 = () => {
                 <div style={{
                     padding: "auto",
                     textAlign: "left",
-                    width: "50%",
+                    width: "60%",
                     margin: "auto",
                     marginBottom: "500px"
                 }}>
@@ -50,7 +52,7 @@ const ENGR102Mod11 = () => {
                         <div className='block'>
                             <p>When we open a file, we have to assign the file to a variable, so we can use the file in our code.</p>
                             <p>For the arguments, we have to set the name of the file and then the action (designator) for our file.</p>
-                            <p>Basic designators look like this:
+                            <p>The basic designators are:
                                 <ul>
                                     <li><code>"r"</code> is to read data from the file</li>
                                     <li><code>"w"</code> is to write data to a new file</li>
@@ -84,6 +86,7 @@ const ENGR102Mod11 = () => {
                                 with open("stats.txt","r") as my_file:<br></br>
                                 &nbsp;&nbsp;&nbsp;&nbsp;print( "No need to close the file" )
                             </div>
+                            <p>Just make sure all the code you want must be inside the indented code block.</p>
                         </div>
                     </div>
 
@@ -172,6 +175,7 @@ const ENGR102Mod11 = () => {
                                 &nbsp;&nbsp;&nbsp;&nbsp;data.append(row)<br></br>
                                 &nbsp;&nbsp;&nbsp;&nbsp;<span className='comment'> # or data.append(line.split(','))</span>
                             </div>
+                            <p>Obviously, there are more ways to accomplish this</p>
                         </div>
 
                         <h3>Having Trouble With File Paths</h3>
@@ -197,7 +201,7 @@ const ENGR102Mod11 = () => {
                     <ul>
                         <li>This is a full code writing quiz</li>
                         <li>You should probably know everything here 😟
-                            <ul><li>The "Other Tips" section is optional to know</li></ul>
+                            <ul><li>Maybe except for the file path one</li></ul>
                         </li>
                     </ul>
                     

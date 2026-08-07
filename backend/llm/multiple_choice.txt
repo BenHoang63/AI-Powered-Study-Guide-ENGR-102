@@ -1,0 +1,13 @@
+Generate a multiple-choice question with up to 4 options (A, B, C, D). True or false questions are allowed. Respond with this exact JSON format:
+{
+  "type": "multiple_choice",
+  "question": "the question text here",
+  "options": {
+    "A": "first option",
+    "B": "second option",
+    "C": "third option",
+    "D": "fourth option"
+  },
+  "correct_answer": "A",
+  "explanation": "brief explanation of why the answer is correct"
+}

@@ -1,0 +1,6 @@
+Given the student's code and the problem description, determine if the student's code is correct. 
+Respond with a JSON object that has the following fields:
+{
+    "correct": boolean,
+    "explanation": string
+}

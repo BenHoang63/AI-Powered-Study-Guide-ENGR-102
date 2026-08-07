@@ -1,0 +1,6 @@
+Generate a free response question where the student needs to write a piece of python code that can be executed and satisfies the given requirements.
+Respond with the following JSON format:
+{
+  "type": "code_writing",
+  "question": "the question text here"
+}

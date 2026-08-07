@@ -1,0 +1,20 @@
+TODO:
+    • [x] finish code_writing
+        • [x] we can't ask about future topics in a question
+        • [x] allow user to tab lines
+        • [x] code lines should have line numbers
+    • [x] complete multiple_answer question type
+    • [x] Include the question type in the question
+    • [x] find a way to embed code into the question UI
+    • [x] find a way to allow the question to have return lines
+    • [x] make it remember the current question
+    • make a page for exam 1 prep
+        • code_writing questions only
+    • make a page for exam 2 prep
+        • code_writing questions only
+
+IDEAS:
+    • create a way for users to choose their preferred question types
+    • create a user feedback page
+    • create a "read about it" button, where it will take you to the topic's page
+    • for code_writing, allow users to run their code

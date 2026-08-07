@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../../styles/styles.css';
 
+
 const ENGR102Mod5 = () => {
 
     const [user, setUser] = useState(null);
@@ -32,6 +33,7 @@ const ENGR102Mod5 = () => {
     return (
         <>
 
+
             <header id="center" style={{ textAlign: "center", margin: "auto"}}>
                 <h1>Module 5 : Program Design & Testing</h1>
             </header>
@@ -40,7 +42,7 @@ const ENGR102Mod5 = () => {
                 <div style={{
                     padding: "auto",
                     textAlign: "left",
-                    width: "50%",
+                    width: "60%",
                     margin: "auto",
                     marginBottom: "500px"
                 }}>

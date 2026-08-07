@@ -1,0 +1,7 @@
+Generate a short-answer question where the student types a short answer (a value, a code snippet, or a brief explanation). Respond with this exact JSON format:
+{
+  "type": "short_answer",
+  "question": "the question text here",
+  "correct_answers": ["answer 1", "answer 2", ...],
+  "explanation": "brief explanation of the correct answer"
+}

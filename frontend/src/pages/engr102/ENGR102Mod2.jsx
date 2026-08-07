@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../../styles/styles.css';
 
+
 const ENGR102Mod2 = () => {
 
     const [user, setUser] = useState(null);
@@ -30,6 +31,7 @@ const ENGR102Mod2 = () => {
     }, []);
     return (
         <>
+
             
             <header id="center" style={{ textAlign: "center", margin: "auto"}}>
                 <h1>Module 2 : Variables and Expressions</h1>
@@ -39,7 +41,7 @@ const ENGR102Mod2 = () => {
                 <div style={{
                     padding: "auto",
                     textAlign: "left",
-                    width: "50%",
+                    width: "60%",
                     margin: "auto",
                     marginBottom: "500px"
                 }}>

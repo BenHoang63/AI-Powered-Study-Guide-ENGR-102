@@ -33,7 +33,7 @@ const ENGR102Home = () => {
             <header id="center" style={{ textAlign: "center", margin: "auto" }}>
                 <h1>ENGR 102</h1>
                 <style>{`
-                    button {
+                    section#center button {
                         padding: 10%; 
                         margin: 5%;
                         cursor: pointer;
@@ -49,6 +49,7 @@ const ENGR102Home = () => {
                     margin: "auto"
                 }}>
                     <h3>Select Topic</h3>
+                    <button onClick={() => { navigate('/engr102/topicquizzer'); }}>Topic Quizzer</button>
                     <button onClick={() => { navigate('/engr102/module1'); }}>Module 1 : Intro to Computing & Python</button>
                     <button onClick={() => { navigate('/engr102/module2'); }}>Module 2 : Variables & Expressions</button>
                     <button onClick={() => { navigate('/engr102/module3'); }}>Module 3 : Types & Strings</button>

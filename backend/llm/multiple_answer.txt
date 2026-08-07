@@ -1,0 +1,15 @@
+Generate a multiple-answer question where the student needs to select multiple options. The question can have as many options as needed.
+Respond with the following JSON format:
+{
+  "type": "multiple_answer",
+  "question": "the question text here",
+  "options": {
+    "A": "first option",
+    "B": "second option",
+    "C": "third option",
+    "D": "fourth option",
+    ...
+  },
+  "correct_answers": ["A", "C"],
+  "explanation": "brief explanation of why the answer is correct"
+}

@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import LoginPage from './pages/LoginPage.jsx'
 import HomePage from './pages/HomePage.jsx'
 import ENGR102Home from './pages/engr102/ENGR102Home.jsx'
@@ -14,10 +14,17 @@ import ENGR102Mod9 from './pages/engr102/ENGR102Mod9.jsx';
 import ENGR102Mod10 from './pages/engr102/ENGR102Mod10.jsx';
 import ENGR102Mod11 from './pages/engr102/ENGR102Mod11.jsx';
 import ENGR102Mod12 from './pages/engr102/ENGR102Mod12.jsx';
+import ENGR102Exam1 from './pages/engr102/ENGR102Exam1.jsx';
+import ENGR102TopicQuizzer from './pages/engr102/ENGR102TopicQuizzer.jsx';
+import Navbar from './components/navbar/Navbar.jsx';
 
 function App() {
+	const location = useLocation();
+	const showNavbar = location.pathname !== '/';
+
 	return (
 		<>
+			{showNavbar && <Navbar />}
 			<Routes>
 				<Route path="/" element={<LoginPage />} />
 				<Route path="/home" element={<HomePage />} />
@@ -34,6 +41,8 @@ function App() {
 				<Route path="/engr102/module10" element={<ENGR102Mod10 />} />
 				<Route path="/engr102/module11" element={<ENGR102Mod11 />} />
 				<Route path="/engr102/module12" element={<ENGR102Mod12 />} />
+				<Route path="/engr102/exam1" element={<ENGR102Exam1 />} />
+				<Route path="/engr102/topicquizzer" element={<ENGR102TopicQuizzer />} />
 			</Routes>
 		</>
 	)

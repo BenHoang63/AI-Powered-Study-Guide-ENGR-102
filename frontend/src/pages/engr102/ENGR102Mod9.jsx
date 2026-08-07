@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../../styles/styles.css';
 
+
 const ENGR102Mod9 = () => {
 
     const [user, setUser] = useState(null);
@@ -30,6 +31,7 @@ const ENGR102Mod9 = () => {
     }, []);
     return (
         <>
+
             
             <header id="center" style={{ textAlign: "center", margin: "auto"}}>
                 <h1>Module 9 : User-Defined Functions & Mutable/Immutable Data Types</h1>
@@ -39,7 +41,7 @@ const ENGR102Mod9 = () => {
                 <div style={{
                     padding: "auto",
                     textAlign: "left",
-                    width: "50%",
+                    width: "60%",
                     margin: "auto",
                     marginBottom: "500px"
                 }}>
