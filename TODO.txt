@@ -8,10 +8,10 @@ TODO:
     • [x] find a way to embed code into the question UI
     • [x] find a way to allow the question to have return lines
     • [x] make it remember the current question
-    • make a page for exam 1 prep
-        • code_writing questions only
-    • make a page for exam 2 prep
-        • code_writing questions only
+    • [x] make a page for exam 1 prep
+        • [x] code_writing questions only
+    • [x] make a page for exam 2 prep
+        • [x] code_writing questions only
 
 IDEAS:
     • create a way for users to choose their preferred question types

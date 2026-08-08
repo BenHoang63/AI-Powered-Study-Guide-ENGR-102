@@ -48,8 +48,11 @@ const ENGR102Home = () => {
                     width: "25%",
                     margin: "auto"
                 }}>
-                    <h3>Select Topic</h3>
+                    <h3>Practice Quizzers</h3>
                     <button onClick={() => { navigate('/engr102/topicquizzer'); }}>Topic Quizzer</button>
+                    <button onClick={() => { navigate('/engr102/exam1'); }}>Exam 1 Practice (Ch. 1–7)</button>
+                    <button onClick={() => { navigate('/engr102/exam2'); }}>Exam 2 Practice (All Ch.)</button>
+                    <h3>Module Notes</h3>
                     <button onClick={() => { navigate('/engr102/module1'); }}>Module 1 : Intro to Computing & Python</button>
                     <button onClick={() => { navigate('/engr102/module2'); }}>Module 2 : Variables & Expressions</button>
                     <button onClick={() => { navigate('/engr102/module3'); }}>Module 3 : Types & Strings</button>
