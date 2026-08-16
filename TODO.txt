@@ -13,6 +13,8 @@ TODO:
     • [x] make a page for exam 2 prep
         • [x] code_writing questions only
 
+    • [x] turn this project into an RAG-based system!
+
 IDEAS:
     • create a way for users to choose their preferred question types
     • create a user feedback page

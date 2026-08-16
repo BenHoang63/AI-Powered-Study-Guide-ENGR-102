@@ -1,8 +1,14 @@
 import dotenv from "dotenv";
 dotenv.config();
 
+const QUESTION_MODEL = process.env.OPENROUTER_QUESTION_MODEL || "openrouter/free";
+const CHECK_MODEL    = process.env.OPENROUTER_CHECK_MODEL    || "openrouter/free";
+console.log(`[Models] Question: ${QUESTION_MODEL} | Check: ${CHECK_MODEL}`);
+
 import express from "express";
 import pg from "pg";
+
+import { embedQuery } from "./llm/embed.js";
 
 const app = express();
 app.use(express.json());
@@ -80,24 +86,43 @@ app.post("/api/engr102/quiz/question", async (req, res) => {
 	// get body and variables
 	const { chapter, topic, type } = req.body;
 
-	// get context
+	// ── RAG: embed the query and retrieve the most relevant topic row ──
 	let topic_name = "";
 	let context = "";
 	let sample = "";
 	let other_instruction = "";
 	try {
-		const result = await pool.query("SELECT * FROM topics WHERE chapter = $1 AND topic = $2", [chapter, topic]);
+		// Build a human-readable query string from chapter/topic hint
+		const chapterDesc = TOPIC_MAP[String(chapter)] || `Chapter ${chapter}`;
+		const queryText = `Chapter ${chapter}, topic ${topic}: ${chapterDesc}`;
+
+		// Embed the query with the same model used during indexing
+		const queryVector = await embedQuery(queryText);
+		const vectorString = JSON.stringify(queryVector);
+
+		// Cosine similarity search — nearest neighbour within the requested chapter
+		const result = await pool.query(
+			`SELECT topic_name, context, question, other_instruction,
+			        1 - (embedding <=> $1::vector) AS similarity
+			 FROM engr102topics
+			 WHERE chapter = $2
+			 ORDER BY embedding <=> $1::vector
+			 LIMIT 1`,
+			[vectorString, chapter]
+		);
+
 		if (result.rows.length === 0) {
 			return res.status(404).json({ error: "Topic not found" });
 		}
 		const question_topic = result.rows[0];
+		console.log(`[RAG] Retrieved: "${question_topic.topic_name}" (similarity: ${Number(question_topic.similarity).toFixed(4)})`);
 		topic_name = question_topic.topic_name;
 		context = question_topic.context;
 		sample = question_topic.question;
 		other_instruction = question_topic.other_instruction;
 	} catch (err) {
-		console.error("Error getting topic context:", err);
-		return res.status(500).json({ error: "Internal server error getting topic context" });
+		console.error("Error during RAG topic retrieval:", err);
+		return res.status(500).json({ error: "Internal server error during RAG retrieval" });
 	}
 
 	// create question prompt
@@ -174,7 +199,7 @@ Other instructions: ${other_instruction}
 					"X-Title": "ENGR 102 Study Guide"
 				},
 				body: JSON.stringify({
-					model: "openrouter/free",
+					model: QUESTION_MODEL,
 					messages: [
 						{ role: "system", content: systemPrompt },
 						{ role: "user",   content: userPrompt }
@@ -186,6 +211,11 @@ Other instructions: ${other_instruction}
 			if (!response.ok) {
 				const errBody = await response.text();
 				console.error("OpenRouter error:", response.status, errBody);
+				// check if code 429
+				if (response.status === 429) {
+					console.log('Free rate limit exceeded');
+					return res.status(429).json({ error: "Free rate limit exceeded." })
+				}
 				continue;
 			}
 
@@ -223,7 +253,7 @@ Other instructions: ${other_instruction}
 	return res.status(500).json({ error: "Failed to generate valid question from AI after 3 attempts" });
 });
 
-// check code writing answer
+// ============================ check code writing answer ============================ //
 app.post("/api/engr102/quiz/check_answer", async (req, res) => {
 /*
 	input JSON
@@ -271,7 +301,7 @@ ${user_answer}
 					"X-Title": "ENGR 102 Study Guide"
 				},
 				body: JSON.stringify({
-					model: "openrouter/free",
+					model: CHECK_MODEL,
 					messages: [
 						{ role: "system", content: systemPrompt },
 						{ role: "user",   content: userPrompt }
@@ -321,11 +351,11 @@ ${user_answer}
 });
 
 
-// get number of topics per chapter
+// ============================ get number of topics per chapter ============================ //
 app.get("/api/engr102/:chapter/num_topics", async (req, res) => {
 	const chapter = req.params.chapter;
 	try {
-		const result = await pool.query("SELECT COUNT(*) FROM topics WHERE chapter = $1", [chapter]);
+		const result = await pool.query("SELECT COUNT(*) FROM engr102topics WHERE chapter = $1", [chapter]);
 		// console.log(result);
 		const topicCount = result.rows[0].count;
 		return res.json({ topicCount });
