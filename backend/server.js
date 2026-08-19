@@ -366,6 +366,56 @@ app.get("/api/engr102/:chapter/num_topics", async (req, res) => {
 })
 
 
+// ============================ feedback ============================ //
+
+// In-memory rate limit store: email -> array of submission timestamps
+const feedbackRateLimit = new Map();
+const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+const RATE_LIMIT_MAX = 3;
+
+app.post("/api/feedback", async (req, res) => {
+	/*
+	input JSON
+	{
+		"user_email": str,
+		"message": str,
+		"category": str,  // 'bug' | 'suggestion' | 'general' | 'other'
+		"page": str
+	}
+	*/
+	const { user_email, message, category, page } = req.body;
+
+	if (!user_email || !message) {
+		return res.status(400).json({ error: "Missing user_email or message." });
+	}
+
+	// ── Rate limiting ──
+	const now = Date.now();
+	const timestamps = (feedbackRateLimit.get(user_email) || []).filter(
+		t => now - t < RATE_LIMIT_WINDOW_MS
+	);
+	if (timestamps.length >= RATE_LIMIT_MAX) {
+		return res.status(429).json({
+			error: `You've submitted too many times. Please wait a few minutes before trying again.`
+		});
+	}
+	timestamps.push(now);
+	feedbackRateLimit.set(user_email, timestamps);
+
+	try {
+		await pool.query(
+			`INSERT INTO feedback (user_email, message, category, page)
+			 VALUES ($1, $2, $3, $4)`,
+			[user_email, message, category || "other", page || null]
+		);
+		return res.json({ success: true });
+	} catch (err) {
+		console.error("Error inserting feedback:", err);
+		return res.status(500).json({ error: "Internal server error saving feedback." });
+	}
+});
+
+
 app.listen(3000, () => {
 	console.log("Server started at http://localhost:3000");
 });

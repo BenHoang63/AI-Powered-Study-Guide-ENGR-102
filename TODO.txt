@@ -18,5 +18,6 @@ TODO:
 IDEAS:
     • create a way for users to choose their preferred question types
     • create a user feedback page
+        • limit submission rates 
     • create a "read about it" button, where it will take you to the topic's page
     • for code_writing, allow users to run their code
