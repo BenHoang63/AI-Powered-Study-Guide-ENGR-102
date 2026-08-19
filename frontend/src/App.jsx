@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import LoginPage from './pages/LoginPage.jsx'
 import HomePage from './pages/HomePage.jsx'
+import FeedbackPage from './pages/Feedback.jsx';
 import ENGR102Home from './pages/engr102/ENGR102Home.jsx'
 import ENGR102Mod1 from './pages/engr102/ENGR102Mod1.jsx';
 import ENGR102Mod2 from './pages/engr102/ENGR102Mod2.jsx';
@@ -29,6 +30,7 @@ function App() {
 			<Routes>
 				<Route path="/" element={<LoginPage />} />
 				<Route path="/home" element={<HomePage />} />
+				<Route path="/feedback" element={<FeedbackPage />} />
 				<Route path="/engr102" element={<ENGR102Home />} />
 				<Route path="/engr102/module1" element={<ENGR102Mod1 />} />
 				<Route path="/engr102/module2" element={<ENGR102Mod2 />} />

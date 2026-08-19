@@ -138,6 +138,19 @@ const Navbar = () => {
                             </div>
                         )}
                     </div>
+
+                    <button
+                        onClick={() => navigate('/feedback')}
+                        style={{
+                            cursor: 'pointer',
+                            background: 'none',
+                            border: 'none',
+                            color: 'white',
+                            fontSize: '0.95rem',
+                            padding: '6px 10px',
+                        }}>
+                            Feedback
+                        </button>
                 </div>
             </nav>
             <div style={{ height: '50px' }} />
