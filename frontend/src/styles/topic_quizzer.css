@@ -213,3 +213,48 @@
     display: block;
     max-width: 100%;
 }
+
+/* ── Code Runner Output ── */
+.cw_output {
+    position: relative;
+    background: #1a1a1a;
+    border: 2px solid #444;
+    box-sizing: border-box;
+    width: 100%;
+    padding: 32px 16px 16px;
+    margin-top: 4px;
+    margin-bottom: 10px;
+    text-align: left;
+}
+
+.cw_output_label {
+    position: absolute;
+    top: 8px;
+    left: 14px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #888;
+    font-family: 'Courier New', Courier, monospace;
+}
+
+.cw_output_stdout {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: #e0e0e0;
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.cw_output_stderr {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: #ff6b6b;
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
