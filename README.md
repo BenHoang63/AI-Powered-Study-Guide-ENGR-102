@@ -4,7 +4,9 @@ An AI-powered, RAG-based study tool built for Texas A&M ENGR 102 students. Gener
 
 > **Access is restricted to `@tamu.edu` email addresses.**
 
-The deployed model can be found at https://ai-powered-study-guide-engr-102.onrender.com/engr102
+### Accessing the App
+The deployed app (for tamu.edu emails only) can be found at https://ai-powered-study-guide-engr-102.onrender.com
+To demo the app with no tamu.edu email, visit https://ai-powered-study-guide-engr-102.onrender.com/?demo=demol15ca2026
 
 ---
 
