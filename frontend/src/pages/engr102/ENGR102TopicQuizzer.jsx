@@ -1,4 +1,5 @@
 import { authClient } from '../../scripts/auth';
+import { isAuthorized, isDemoMode } from '../../scripts/demo';
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../../styles/styles.css';
@@ -115,9 +116,12 @@ const ENGR102TopicQuizzer = () => {
     // Code writing line numbers refs and state
     const lineNumbersRef = useRef(null);
     const textareaRef = useRef(null);
+    const pyodideWorkerRef = useRef(null);
     const [lineCount, setLineCount] = useState(1);
     const [codeRunning, setCodeRunning] = useState(false);
-    const [codeOutput, setCodeOutput] = useState(null); // null = not yet run
+    const [codeOutput, setCodeOutput] = useState(null);
+    const [stdinValue, setStdinValue] = useState("");
+    const [pyodideReady, setPyodideReady] = useState(false);
 
     const updateLineCount = (val) => {
         const lines = (val || "").split('\n').length;
@@ -134,7 +138,7 @@ const ENGR102TopicQuizzer = () => {
         authClient.getSession().then(({ data }) => {
             if (data?.user) {
                 // Check if TAMU email
-                if (data.user.email?.includes("@tamu.edu")) {
+                if (isAuthorized(data.user.email)) {
                     setUser(data.user);
                     return;
                 } else {
@@ -143,7 +147,7 @@ const ENGR102TopicQuizzer = () => {
                     setError("Please sign in with your @tamu.edu email.");
                     authClient.signOut();
                 }
-            } else {
+            } else if (!isDemoMode()) {
                 navigate('/');
             }
         });
@@ -166,7 +170,12 @@ const ENGR102TopicQuizzer = () => {
         sessionStorage.setItem('quizzer_currentQuestion', JSON.stringify(currentQuestion));
     }, [currentQuestion]);
 
-    // Restore UI panel visibility on mount based on persisted quizMode
+    // Pre-fetch the next question as soon as the current one is displayed
+    useEffect(() => {
+        if (quizMode && currentQuestion[3]?.question) {
+            prefetchNextQuestion();
+        }
+    }, [currentQuestion[3]?.question]);
     useEffect(() => {
         const savedQuizMode = sessionStorage.getItem('quizzer_quizMode') === 'true';
         if (savedQuizMode) {
@@ -307,12 +316,8 @@ const ENGR102TopicQuizzer = () => {
         const promise = fetchQuestionData();
         nextQuestionPromiseRef.current = promise;
 
-        promise.then((qData) => {
+        promise.then(() => {
             setPrefetchLoading(false);
-            const nextBtn = document.getElementById('next-question');
-            if (nextBtn) {
-                nextBtn.hidden = false;
-            }
         }).catch((err) => {
             console.error("Prefetch error:", err);
             setPrefetchLoading(false);
@@ -415,9 +420,7 @@ const ENGR102TopicQuizzer = () => {
             setExplanationText(`Correct! ${currentQuestion[3].explanation}`);
             document.getElementById('explanation').hidden = false;
             document.getElementById('submit').hidden = true;
-            document.getElementById('next-question').hidden = true;
-            // Start pre-fetching the next question immediately in the background
-            prefetchNextQuestion();
+            document.getElementById('next-question').hidden = false;
         }
         else {
             // disable answer choice 
@@ -449,6 +452,7 @@ const ENGR102TopicQuizzer = () => {
         setExplanationText("");
         setCodeOutput(null);
         setCodeRunning(false);
+        setStdinValue("");
 
         document.getElementById('explanation').hidden = true;
         document.getElementById('submit').hidden = false;
@@ -480,9 +484,7 @@ const ENGR102TopicQuizzer = () => {
             setExplanationText(`Correct! ${currentQuestion[3].explanation}`);
             document.getElementById('explanation').hidden = false;
             document.getElementById('submit').hidden = true;
-            document.getElementById('next-question').hidden = true;
-            // Start pre-fetching the next question immediately in the background
-            prefetchNextQuestion();
+            document.getElementById('next-question').hidden = false;
         } else {
             setExplanationText("Incorrect. Try again.");
             document.getElementById('explanation').hidden = false;
@@ -490,38 +492,47 @@ const ENGR102TopicQuizzer = () => {
     };
 
 
-    // ========================== CODE RUNNING (Piston API) ========================== //
+    // ========================== CODE RUNNING (Pyodide) ========================== //
 
     const runCode = async () => {
         const code = document.getElementById('cw_answer')?.value;
         if (!code || code.trim() === "") {
-            setCodeOutput({ stdout: "", stderr: "Nothing to run.", error: false });
+            setCodeOutput({ stdout: "", stderr: "Nothing to run.", exitCode: 0 });
             return;
         }
+
         setCodeRunning(true);
         setCodeOutput(null);
-        try {
-            const response = await fetch('https://emkc.org/api/v2/piston/execute', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    language: 'python',
-                    version: '3.10.0',
-                    files: [{ content: code }]
-                })
-            });
-            if (!response.ok) throw new Error('Piston API error');
-            const data = await response.json();
-            setCodeOutput({
-                stdout: data.run?.stdout || "",
-                stderr: data.run?.stderr || "",
-                error: data.run?.code !== 0
-            });
-        } catch (err) {
-            setCodeOutput({ stdout: "", stderr: "Could not reach the code runner. Please try again.", error: true });
-        } finally {
-            setCodeRunning(false);
+
+        // Lazily create the worker on first use
+        if (!pyodideWorkerRef.current) {
+            pyodideWorkerRef.current = new Worker('/pyodide.worker.js');
+            // The worker starts loading Pyodide immediately on creation;
+            // we'll know it's ready when it responds to our first message.
         }
+
+        const worker = pyodideWorkerRef.current;
+        const id = Date.now();
+        const stdinLines = stdinValue.split("\n").filter(l => l !== "");
+
+        const result = await new Promise((resolve) => {
+            const handler = (e) => {
+                if (e.data.id === id) {
+                    worker.removeEventListener('message', handler);
+                    resolve(e.data);
+                }
+            };
+            worker.addEventListener('message', handler);
+            worker.postMessage({ id, code, stdinLines });
+        });
+
+        setCodeOutput({
+            stdout: result.stdout,
+            stderr: result.stderr,
+            exitCode: result.exitCode
+        });
+        setPyodideReady(true); // warm after first successful run
+        setCodeRunning(false);
     };
 
 
@@ -618,9 +629,7 @@ const ENGR102TopicQuizzer = () => {
                 setExplanationText(`Correct! ${explanation}`);
                 document.getElementById('explanation').hidden = false;
                 document.getElementById('submit').hidden = true;
-                document.getElementById('next-question').hidden = true;
-                // Start pre-fetching the next question immediately in the background
-                prefetchNextQuestion();
+                document.getElementById('next-question').hidden = false;
             } else {
                 setExplanationText(`Incorrect. ${explanation || "Try again."}`);
                 document.getElementById('explanation').hidden = false;
@@ -711,9 +720,7 @@ const ENGR102TopicQuizzer = () => {
             setExplanationText(`Correct! ${currentQuestion[3].explanation}`);
             document.getElementById('explanation').hidden = false;
             document.getElementById('submit').hidden = true;
-            document.getElementById('next-question').hidden = true;
-            // Start pre-fetching the next question immediately in the background
-            prefetchNextQuestion();
+            document.getElementById('next-question').hidden = false;
         } else {
             setExplanationText("Incorrect. Try again.");
             document.getElementById('explanation').hidden = false;
@@ -907,6 +914,17 @@ const ENGR102TopicQuizzer = () => {
                                 ></textarea>
                             </div>
 
+                            {/* Stdin textarea */}
+                            <div className='cw_stdin_wrapper'>
+                                <span className='cw_stdin_label'>Stdin <span style={{ fontWeight: 400, fontSize: "0.8rem", color: "#888" }}>(one value per line — for input() calls)</span></span>
+                                <textarea
+                                    className='cw_stdin_box'
+                                    placeholder={"e.g.\nAlice\n25\n3.14"}
+                                    value={stdinValue}
+                                    onChange={(e) => setStdinValue(e.target.value)}
+                                />
+                            </div>
+
                             {/* Run Code button */}
                             <button
                                 className='toggle-all-btn'
@@ -914,7 +932,17 @@ const ENGR102TopicQuizzer = () => {
                                 disabled={codeRunning}
                                 onClick={runCode}
                             >
-                                {codeRunning ? "Running..." : "▶ Run Code"}
+                                {codeRunning
+                                    ? (pyodideReady ? "Running..." : "Loading Python...")
+                                    : "▶ Run Code"
+                                }
+                            </button>
+                            <button
+                                className='toggle-all-btn'
+                                style={{ marginLeft: '8px' }}
+                                onClick={() => window.open('/other/how-to-use-stdin', '_blank')}
+                            >
+                                How to use Stdin
                             </button>
 
                             {/* Output box */}

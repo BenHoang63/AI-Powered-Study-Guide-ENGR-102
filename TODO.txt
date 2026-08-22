@@ -21,3 +21,10 @@ IDEAS:
         • [x] limit submission rates 
     • [x] create a "read about it" button, where it will take you to the topic's page
     • [x] for code_writing, allow users to run their code
+    • [x] pre-fetch questions earlier
+    • allow a way for job recruiters to demo the website
+    • new UI for entire website
+    • create user profiles
+        • allow users to see their statistics
+        • allow users to see their favorite topics
+        • allow users to see their weakest topics
