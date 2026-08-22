@@ -40,7 +40,7 @@ To demo the app with no tamu.edu email, visit https://ai-powered-study-guide-eng
 |---|---|
 | Frontend | React (Vite), React Router, Vanilla CSS |
 | Backend | Node.js, Express |
-| Database | PostgreSQL (via `pg`) |
+| Database | PostgreSQL (via NeonDB) |
 | AI / LLM | OpenRouter API |
 | Embeddings | Custom embedding pipeline (`backend/llm/embed.js`) |
 | Auth | Better Auth (`@tamu.edu` restricted) |
@@ -60,7 +60,7 @@ To demo the app with no tamu.edu email, visit https://ai-powered-study-guide-eng
 │   └── server.js                 # Express API server
 └── frontend/
     └── src/
-        ├── components/           # Shared UI components (Navbar, QuizCard, etc.)
+        ├── components/           # Shared UI components (Navbar, etc.)
         ├── pages/
         │   ├── engr102/          # ENGR 102 module and quiz pages
         │   ├── etam/             # ETAM pages (coming soon)
@@ -109,6 +109,7 @@ Create `frontend/.env`:
 
 ```env
 VITE_BACKEND_URL=http://localhost:3000
+VITE_DEMO_TOKEN=demol15ca2026
 ```
 
 ### Run
