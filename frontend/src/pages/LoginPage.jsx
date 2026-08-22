@@ -1,4 +1,5 @@
 import { authClient } from '../scripts/auth'
+import { enableDemoMode, isAuthorized } from '../scripts/demo';
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
@@ -29,15 +30,22 @@ const LoginPage = () => {
 	};
 
 	useEffect(() => {
+		// ── Demo mode: check for ?demo=TOKEN in the URL ──
+		const params = new URLSearchParams(window.location.search);
+		const token = params.get('demo');
+		if (token && token === import.meta.env.VITE_DEMO_TOKEN) {
+			enableDemoMode();
+			navigate('/home');
+			return;
+		}
+
+		// ── Normal auth flow ──
 		authClient.getSession().then(({ data }) => {
 			if (data?.user) {
-				// Check if TAMU email
-				if (data.user.email?.includes("@tamu.edu")) {
+				if (isAuthorized(data.user.email)) {
 					setUser(data.user);
-					// redirect user
 					navigate('/home');
 				} else {
-					// Not a TAMU student — sign them out
 					console.log("Not a TAMU student:", data.user.email);
 					setError("Please sign in with your @tamu.edu email.");
 					authClient.signOut();

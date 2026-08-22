@@ -1,4 +1,5 @@
 import { authClient } from '../scripts/auth';
+import { isAuthorized, isDemoMode } from '../scripts/demo';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/styles.css';
@@ -34,13 +35,13 @@ const FeedbackPage = () => {
     useEffect(() => {
         authClient.getSession().then(({ data }) => {
             if (data?.user) {
-                if (data.user.email?.includes('@tamu.edu')) {
+                if (isAuthorized(data.user.email)) {
                     setUser(data.user);
                 } else {
                     setError('Please sign in with your @tamu.edu email.');
                     authClient.signOut();
                 }
-            } else {
+            } else if (!isDemoMode()) {
                 navigate('/');
             }
         });

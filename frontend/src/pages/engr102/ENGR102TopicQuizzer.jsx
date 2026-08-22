@@ -1,4 +1,5 @@
 import { authClient } from '../../scripts/auth';
+import { isAuthorized, isDemoMode } from '../../scripts/demo';
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../../styles/styles.css';
@@ -91,6 +92,12 @@ const ENGR102TopicQuizzer = () => {
         try { return JSON.parse(sessionStorage.getItem('quizzer_selectedTopics')) || []; }
         catch { return []; }
     });
+    const [selectedTypes, setSelectedTypes] = useState(() => {
+        try {
+            const saved = JSON.parse(sessionStorage.getItem('quizzer_selectedTypes'));
+            return saved && saved.length > 0 ? saved : Object.keys(QUESTION_TYPE_LABELS);
+        } catch { return Object.keys(QUESTION_TYPE_LABELS); }
+    });
     const [quizMode, setQuizMode] = useState(() => {
         return sessionStorage.getItem('quizzer_quizMode') === 'true';
     });
@@ -109,7 +116,12 @@ const ENGR102TopicQuizzer = () => {
     // Code writing line numbers refs and state
     const lineNumbersRef = useRef(null);
     const textareaRef = useRef(null);
+    const pyodideWorkerRef = useRef(null);
     const [lineCount, setLineCount] = useState(1);
+    const [codeRunning, setCodeRunning] = useState(false);
+    const [codeOutput, setCodeOutput] = useState(null);
+    const [stdinValue, setStdinValue] = useState("");
+    const [pyodideReady, setPyodideReady] = useState(false);
 
     const updateLineCount = (val) => {
         const lines = (val || "").split('\n').length;
@@ -126,7 +138,7 @@ const ENGR102TopicQuizzer = () => {
         authClient.getSession().then(({ data }) => {
             if (data?.user) {
                 // Check if TAMU email
-                if (data.user.email?.includes("@tamu.edu")) {
+                if (isAuthorized(data.user.email)) {
                     setUser(data.user);
                     return;
                 } else {
@@ -135,16 +147,20 @@ const ENGR102TopicQuizzer = () => {
                     setError("Please sign in with your @tamu.edu email.");
                     authClient.signOut();
                 }
-            } else {
+            } else if (!isDemoMode()) {
                 navigate('/');
             }
         });
     }, []);
 
-    // Persist selectedTopics, quizMode, and currentQuestion to sessionStorage
+    // Persist selectedTopics, selectedTypes, quizMode, and currentQuestion to sessionStorage
     useEffect(() => {
         sessionStorage.setItem('quizzer_selectedTopics', JSON.stringify(selectedTopics));
     }, [selectedTopics]);
+
+    useEffect(() => {
+        sessionStorage.setItem('quizzer_selectedTypes', JSON.stringify(selectedTypes));
+    }, [selectedTypes]);
 
     useEffect(() => {
         sessionStorage.setItem('quizzer_quizMode', quizMode);
@@ -154,7 +170,12 @@ const ENGR102TopicQuizzer = () => {
         sessionStorage.setItem('quizzer_currentQuestion', JSON.stringify(currentQuestion));
     }, [currentQuestion]);
 
-    // Restore UI panel visibility on mount based on persisted quizMode
+    // Pre-fetch the next question as soon as the current one is displayed
+    useEffect(() => {
+        if (quizMode && currentQuestion[3]?.question) {
+            prefetchNextQuestion();
+        }
+    }, [currentQuestion[3]?.question]);
     useEffect(() => {
         const savedQuizMode = sessionStorage.getItem('quizzer_quizMode') === 'true';
         if (savedQuizMode) {
@@ -194,6 +215,23 @@ const ENGR102TopicQuizzer = () => {
         }
     };
 
+    const toggleType = (typeKey) => {
+        setSelectedTypes((prev) =>
+            prev.includes(typeKey)
+                ? prev.filter((t) => t !== typeKey)
+                : [...prev, typeKey]
+        );
+    };
+
+    const toggleAllTypes = () => {
+        const allTypeKeys = Object.keys(QUESTION_TYPE_LABELS);
+        if (selectedTypes.length === allTypeKeys.length) {
+            setSelectedTypes([]);
+        } else {
+            setSelectedTypes(allTypeKeys);
+        }
+    };
+
     const toggleUI = (clearQuestion = false) => {
         let topic_select = document.getElementById('topic-select');
         let quiz = document.getElementById('quiz');
@@ -218,16 +256,13 @@ const ENGR102TopicQuizzer = () => {
     const nextQuestionPromiseRef = useRef(null);
 
     const fetchQuestionData = async () => {
-        let randomNum = Math.random();
         let questionType = '';
         let ch = 1; // chapter
         let tp = 1; // topic
 
-        // get question type
-        if (randomNum < 0.25) { questionType = 'multiple_choice'; }
-        else if (randomNum < 0.5) { questionType = 'short_answer'; }
-        else if (randomNum < 0.75) { questionType = 'code_writing'; }
-        else { questionType = 'multiple_answer'; }
+        // get question type from user-selected types (fallback to all types)
+        const availableTypes = selectedTypes.length > 0 ? selectedTypes : Object.keys(QUESTION_TYPE_LABELS);
+        questionType = availableTypes[Math.floor(Math.random() * availableTypes.length)];
 
         // testing
         // questionType = 'multiple_answer';
@@ -265,9 +300,9 @@ const ENGR102TopicQuizzer = () => {
             if (!response2.ok) throw new Error(response2.error);
             const data2 = await response2.json();
 
-            console.log("Fetched question topic:", data2.topic_name);
+            // console.log("Fetched question topic:", data2.topic_name);
 
-            console.log("data2", data2.llm_response);
+            // console.log("data2", data2.llm_response);
             return [ch, tp, data2.topic_name, data2.llm_response, null];
         } catch (err) {
             console.error("[Error] ENGR102TopicQuizzer: could not get question from server\n" + err);
@@ -276,17 +311,13 @@ const ENGR102TopicQuizzer = () => {
     };
 
     const prefetchNextQuestion = () => {
-        console.log("Pre-fetching next question in background...");
+        // console.log("Pre-fetching next question in background...");
         setPrefetchLoading(true);
         const promise = fetchQuestionData();
         nextQuestionPromiseRef.current = promise;
 
-        promise.then((qData) => {
+        promise.then(() => {
             setPrefetchLoading(false);
-            const nextBtn = document.getElementById('next-question');
-            if (nextBtn) {
-                nextBtn.hidden = false;
-            }
         }).catch((err) => {
             console.error("Prefetch error:", err);
             setPrefetchLoading(false);
@@ -298,7 +329,7 @@ const ENGR102TopicQuizzer = () => {
 
         // If a pre-fetch promise is pending or completed, use it
         if (nextQuestionPromiseRef.current) {
-            console.log("Using pre-fetched question!");
+            // console.log("Using pre-fetched question!");
             const promise = nextQuestionPromiseRef.current;
             nextQuestionPromiseRef.current = null;
             qData = await promise;
@@ -318,6 +349,8 @@ const ENGR102TopicQuizzer = () => {
     };
 
     const allSelected = selectedTopics.length === TOPICS.length;
+    const allTypesSelected = selectedTypes.length === Object.keys(QUESTION_TYPE_LABELS).length;
+    const moduleUrl = currentQuestion[0] ? `/engr102/module${currentQuestion[0]}` : null;
 
     // hide all question types
     const hide_all = () => {
@@ -328,7 +361,7 @@ const ENGR102TopicQuizzer = () => {
     const start_question_setup = (qData = currentQuestion) => {
         if (!qData || !qData[3]) return;
         const questionType = qData[3].type;
-        console.log('starting question setup...');
+        // console.log('starting question setup...');
         if (questionType === 'multiple_choice') { mc_setup(qData); }
         else if (questionType === 'short_answer') { sa_setup(qData); }
         else if (questionType === 'code_writing') { sa_setup(qData); }
@@ -387,9 +420,7 @@ const ENGR102TopicQuizzer = () => {
             setExplanationText(`Correct! ${currentQuestion[3].explanation}`);
             document.getElementById('explanation').hidden = false;
             document.getElementById('submit').hidden = true;
-            document.getElementById('next-question').hidden = true;
-            // Start pre-fetching the next question immediately in the background
-            prefetchNextQuestion();
+            document.getElementById('next-question').hidden = false;
         }
         else {
             // disable answer choice 
@@ -419,6 +450,9 @@ const ENGR102TopicQuizzer = () => {
         if (cw) cw.value = "";
         setLineCount(1);
         setExplanationText("");
+        setCodeOutput(null);
+        setCodeRunning(false);
+        setStdinValue("");
 
         document.getElementById('explanation').hidden = true;
         document.getElementById('submit').hidden = false;
@@ -450,13 +484,55 @@ const ENGR102TopicQuizzer = () => {
             setExplanationText(`Correct! ${currentQuestion[3].explanation}`);
             document.getElementById('explanation').hidden = false;
             document.getElementById('submit').hidden = true;
-            document.getElementById('next-question').hidden = true;
-            // Start pre-fetching the next question immediately in the background
-            prefetchNextQuestion();
+            document.getElementById('next-question').hidden = false;
         } else {
             setExplanationText("Incorrect. Try again.");
             document.getElementById('explanation').hidden = false;
         }
+    };
+
+
+    // ========================== CODE RUNNING (Pyodide) ========================== //
+
+    const runCode = async () => {
+        const code = document.getElementById('cw_answer')?.value;
+        if (!code || code.trim() === "") {
+            setCodeOutput({ stdout: "", stderr: "Nothing to run.", exitCode: 0 });
+            return;
+        }
+
+        setCodeRunning(true);
+        setCodeOutput(null);
+
+        // Lazily create the worker on first use
+        if (!pyodideWorkerRef.current) {
+            pyodideWorkerRef.current = new Worker('/pyodide.worker.js');
+            // The worker starts loading Pyodide immediately on creation;
+            // we'll know it's ready when it responds to our first message.
+        }
+
+        const worker = pyodideWorkerRef.current;
+        const id = Date.now();
+        const stdinLines = stdinValue.split("\n").filter(l => l !== "");
+
+        const result = await new Promise((resolve) => {
+            const handler = (e) => {
+                if (e.data.id === id) {
+                    worker.removeEventListener('message', handler);
+                    resolve(e.data);
+                }
+            };
+            worker.addEventListener('message', handler);
+            worker.postMessage({ id, code, stdinLines });
+        });
+
+        setCodeOutput({
+            stdout: result.stdout,
+            stderr: result.stderr,
+            exitCode: result.exitCode
+        });
+        setPyodideReady(true); // warm after first successful run
+        setCodeRunning(false);
     };
 
 
@@ -553,9 +629,7 @@ const ENGR102TopicQuizzer = () => {
                 setExplanationText(`Correct! ${explanation}`);
                 document.getElementById('explanation').hidden = false;
                 document.getElementById('submit').hidden = true;
-                document.getElementById('next-question').hidden = true;
-                // Start pre-fetching the next question immediately in the background
-                prefetchNextQuestion();
+                document.getElementById('next-question').hidden = false;
             } else {
                 setExplanationText(`Incorrect. ${explanation || "Try again."}`);
                 document.getElementById('explanation').hidden = false;
@@ -646,9 +720,7 @@ const ENGR102TopicQuizzer = () => {
             setExplanationText(`Correct! ${currentQuestion[3].explanation}`);
             document.getElementById('explanation').hidden = false;
             document.getElementById('submit').hidden = true;
-            document.getElementById('next-question').hidden = true;
-            // Start pre-fetching the next question immediately in the background
-            prefetchNextQuestion();
+            document.getElementById('next-question').hidden = false;
         } else {
             setExplanationText("Incorrect. Try again.");
             document.getElementById('explanation').hidden = false;
@@ -719,9 +791,48 @@ const ENGR102TopicQuizzer = () => {
                         {selectedTopics.length} of {TOPICS.length} topics selected
                     </div>
 
+                    {/* Question Type Selection */}
+                    <div style={{ marginTop: "32px", textAlign: "left" }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+                            <h3 style={{ margin: 0, fontSize: "1rem", color: "#ccc" }}>Question Types</h3>
+                            <button
+                                className="toggle-all-btn"
+                                style={{ padding: "4px 12px", fontSize: "0.8rem" }}
+                                onClick={toggleAllTypes}
+                            >
+                                {allTypesSelected ? "Deselect All" : "Select All"}
+                            </button>
+                        </div>
+                        <div style={{
+                            display: "grid",
+                            gridTemplateColumns: "1fr 1fr",
+                            gap: "8px",
+                        }}>
+                            {Object.entries(QUESTION_TYPE_LABELS).map(([typeKey, typeLabel]) => {
+                                const isTypeSelected = selectedTypes.includes(typeKey);
+                                return (
+                                    <button
+                                        key={typeKey}
+                                        className={`topic-card${isTypeSelected ? " selected" : ""}`}
+                                        onClick={() => toggleType(typeKey)}
+                                        style={{ padding: "10px 14px", fontSize: "0.9rem" }}
+                                    >
+                                        {typeLabel}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <div style={{ marginTop: "8px", color: selectedTypes.length === 0 ? "#e07070" : "#aaa", fontSize: "0.85rem" }}>
+                            {selectedTypes.length === 0
+                                ? "⚠ Select at least one question type"
+                                : `${selectedTypes.length} of ${Object.keys(QUESTION_TYPE_LABELS).length} question types selected`
+                            }
+                        </div>
+                    </div>
+
                     <button
                         className="quiz-start-btn"
-                        disabled={selectedTopics.length === 0}
+                        disabled={selectedTopics.length === 0 || selectedTypes.length === 0}
                         onClick={ async () => {
                             toggleUI();
                             const qData = await getQuestion();
@@ -802,6 +913,53 @@ const ENGR102TopicQuizzer = () => {
                                     onScroll={handleCwScroll}
                                 ></textarea>
                             </div>
+
+                            {/* Stdin textarea */}
+                            <div className='cw_stdin_wrapper'>
+                                <span className='cw_stdin_label'>Stdin <span style={{ fontWeight: 400, fontSize: "0.8rem", color: "#888" }}>(one value per line — for input() calls)</span></span>
+                                <textarea
+                                    className='cw_stdin_box'
+                                    placeholder={"e.g.\nAlice\n25\n3.14"}
+                                    value={stdinValue}
+                                    onChange={(e) => setStdinValue(e.target.value)}
+                                />
+                            </div>
+
+                            {/* Run Code button */}
+                            <button
+                                className='toggle-all-btn'
+                                style={{ marginBottom: "8px" }}
+                                disabled={codeRunning}
+                                onClick={runCode}
+                            >
+                                {codeRunning
+                                    ? (pyodideReady ? "Running..." : "Loading Python...")
+                                    : "▶ Run Code"
+                                }
+                            </button>
+                            <button
+                                className='toggle-all-btn'
+                                style={{ marginLeft: '8px' }}
+                                onClick={() => window.open('/other/how-to-use-stdin', '_blank')}
+                            >
+                                How to use Stdin
+                            </button>
+
+                            {/* Output box */}
+                            {codeOutput !== null && (
+                                <div className='cw_output'>
+                                    <span className='cw_output_label'>Output</span>
+                                    {codeOutput.stdout && (
+                                        <pre className='cw_output_stdout'>{codeOutput.stdout}</pre>
+                                    )}
+                                    {codeOutput.stderr && (
+                                        <pre className='cw_output_stderr'>{codeOutput.stderr}</pre>
+                                    )}
+                                    {!codeOutput.stdout && !codeOutput.stderr && (
+                                        <pre className='cw_output_stdout' style={{ color: '#888' }}>(no output)</pre>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -823,6 +981,20 @@ const ENGR102TopicQuizzer = () => {
                     )}
 
                     <p id='explanation' hidden={true}>{renderFormattedText(explanationText)}</p>
+
+                    {/* Read About It — always visible during quiz */}
+                    {moduleUrl && (
+                        <div>
+                            <br></br>
+                            <button
+                                className="toggle-all-btn"
+                                style={{ marginTop: "4px" }}
+                                onClick={() => window.open(moduleUrl, '_blank')}
+                            >
+                                Read About It
+                            </button> 
+                        </div>
+                    )}
 
                     <button id='submit' className='quiz-start-btn'
                         disabled={loading || (currentQuestion[3]?.type === 'multiple_choice' && currentQuestion[4] == null)} 

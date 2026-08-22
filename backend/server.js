@@ -182,9 +182,8 @@ ${restrictionNotice}
 `;
 
 	const userPrompt = `Generate a ${type} question about topic ${topic_name}: ${context}.
-${restrictionNotice}
 
-Sample question that can be used as a reference: ${sample}. Do not use this sample question in the generated question.
+Sample question for reference (do not reuse): ${sample}
 Other instructions: ${other_instruction}
 `;
 

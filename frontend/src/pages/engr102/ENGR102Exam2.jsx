@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authClient } from '../../scripts/auth';
+import { isAuthorized, isDemoMode } from '../../scripts/demo';
 import ExamQuizzer from '../../components/ExamQuizzer';
 import refPdf from '../../assets/pdfs/ENGR102_ReferenceSheet.pdf';
 
@@ -12,10 +13,10 @@ const ENGR102Exam2 = () => {
     useEffect(() => {
         authClient.getSession().then(({ data }) => {
             if (data?.user) {
-                if (!data.user.email?.includes('@tamu.edu')) {
+                if (!isAuthorized(data.user.email)) {
                     authClient.signOut();
                 }
-            } else {
+            } else if (!isDemoMode()) {
                 navigate('/');
             }
         });

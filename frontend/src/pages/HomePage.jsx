@@ -1,4 +1,5 @@
 import { authClient } from '../scripts/auth';
+import { isAuthorized, isDemoMode } from '../scripts/demo';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -13,7 +14,7 @@ const HomePage = () => {
         authClient.getSession().then(({ data }) => {
             if (data?.user) {
                 // Check if TAMU email
-                if (data.user.email?.includes("@tamu.edu")) {
+                if (isAuthorized(data.user.email)) {
                     setUser(data.user);
                     return;
                 } else {
@@ -22,7 +23,7 @@ const HomePage = () => {
                     setError("Please sign in with your @tamu.edu email.");
                     authClient.signOut();
                 }
-            } else {
+            } else if (!isDemoMode()) {
                 navigate('/');
             }
         });
@@ -37,7 +38,7 @@ const HomePage = () => {
                     margin: "auto"
                 }}>
                 <h1>Home</h1>
-                <h2>Welcome, {user?.name}!</h2>
+                <h2>Welcome, {user?.name || (isDemoMode() && "Demo User")}!</h2>
                 <p>{user?.email}</p>
                 <button onClick={() => { authClient.signOut(); navigate('/'); }}>Sign Out</button>
                 <br></br>
