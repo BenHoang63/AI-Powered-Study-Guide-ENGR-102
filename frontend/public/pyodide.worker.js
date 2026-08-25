@@ -56,7 +56,11 @@ _builtins.input = _mock_input
         await pyodide.runPythonAsync(inputOverride);
         await pyodide.runPythonAsync(code);
     } catch (err) {
-        stderr += err.message || String(err);
+        let msg = err.message || String(err);
+        if (msg.includes("EOFError")) {
+            msg = "EOFError: EOF when reading a line.\nYour code called input(), but there were not enough input values provided in the Stdin box.";
+        }
+        stderr += msg;
         exitCode = 1;
     }
 

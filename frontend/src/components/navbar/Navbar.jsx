@@ -138,18 +138,33 @@ const Navbar = () => {
                             </div>
                         )}
                     </div>
+                    
+                        {/* User Progress */}
+                        <button
+                            onClick={() => navigate('/userprofile')}
+                            style={{
+                                cursor: 'pointer',
+                                background: 'none',
+                                border: 'none',
+                                color: 'white',
+                                fontSize: '0.95rem',
+                                padding: '6px 10px',
+                            }}>
+                            User Progress
+                        </button>
 
-                    <button
-                        onClick={() => navigate('/feedback')}
-                        style={{
-                            cursor: 'pointer',
-                            background: 'none',
-                            border: 'none',
-                            color: 'white',
-                            fontSize: '0.95rem',
-                            padding: '6px 10px',
-                        }}>
-                            Feedback
+                        {/* Feedback */}
+                        <button
+                            onClick={() => navigate('/feedback')}
+                            style={{
+                                cursor: 'pointer',
+                                background: 'none',
+                                border: 'none',
+                                color: 'white',
+                                fontSize: '0.95rem',
+                                padding: '6px 10px',
+                            }}>
+                                Feedback
                         </button>
                 </div>
             </nav>

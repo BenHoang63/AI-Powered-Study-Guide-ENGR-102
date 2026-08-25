@@ -34,6 +34,11 @@ const pool = new pg.Pool({
   ssl:      { rejectUnauthorized: false }
 });
 
+// Handle unexpected errors on idle pool clients (prevents server crashes on network disconnects)
+pool.on('error', (err, client) => {
+	console.error('Unexpected error on idle database client:', err);
+});
+
 // test the connection on startup
 pool.connect((err, client, release) => {
 	if (err) {
@@ -413,6 +418,78 @@ app.post("/api/feedback", async (req, res) => {
 		return res.status(500).json({ error: "Internal server error saving feedback." });
 	}
 });
+
+
+// ============================ user profile ============================ //
+
+// record topic progress
+app.post("/api/stats/record", async (req, res) => {
+    /*
+    input JSON
+    {
+        "email": str,
+        "course": str,    // e.g. "engr102"
+        "chapter": int,
+        "topic": int,
+        "is_correct": bool,
+        "attempts": int,  // optional
+        "correct": int    // optional
+    }
+    */
+    const { email, course, chapter, topic, is_correct, attempts: reqAttempts, correct: reqCorrect } = req.body;
+
+    if (!email || !course || !chapter || !topic)
+        return res.status(400).json({ error: "Missing required fields." });
+
+    const numAttempts = reqAttempts !== undefined ? Number(reqAttempts) : 1;
+    const numCorrect  = reqCorrect  !== undefined ? Number(reqCorrect)  : (is_correct ? 1 : 0);
+
+    try {
+        await pool.query(
+            `INSERT INTO user_topic_progress (email, course, chapter, topic, attempts, correct)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             ON CONFLICT (email, course, chapter, topic) DO UPDATE SET
+                 attempts = user_topic_progress.attempts + $5,
+                 correct  = user_topic_progress.correct + $6`,
+            [email, course, chapter, topic, numAttempts, numCorrect]
+        );
+        return res.json({ success: true });
+    } catch (err) {
+        console.error("Error recording topic progress:", err);
+        return res.status(500).json({ error: "Internal server error." });
+    }
+});
+
+// get topic progress
+app.get("/api/stats/:course/:email", async (req, res) => {
+    const { course, email } = req.params;
+
+    if (!/^[a-zA-Z0-9_]+$/.test(course)) {
+        return res.status(400).json({ error: "Invalid course parameter." });
+    }
+
+    const topicsTable = `${course.toLowerCase()}topics`;
+
+    try {
+        const result = await pool.query(
+            `SELECT p.chapter, p.topic, t.topic_name, p.attempts, p.correct,
+                    CASE WHEN p.attempts > 0
+                         THEN ROUND((p.correct::NUMERIC / p.attempts) * 100, 1)
+                         ELSE NULL
+                    END AS accuracy_pct
+             FROM user_topic_progress p
+             LEFT JOIN ${topicsTable} t ON p.chapter = t.chapter AND p.topic = t.topic
+             WHERE p.email = $1 AND p.course = $2
+             ORDER BY p.chapter, p.topic`,
+            [email, course]
+        );
+        return res.json({ stats: result.rows });
+    } catch (err) {
+        console.error("Error fetching topic progress:", err);
+        return res.status(500).json({ error: "Internal server error." });
+    }
+});
+
 
 
 app.listen(3000, () => {

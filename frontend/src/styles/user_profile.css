@@ -1,0 +1,194 @@
+/* ── User Profile Page ── */
+
+.profile-wrapper {
+    width: 70%;
+    max-width: 860px;
+    margin: 0 auto 100px;
+    padding: 0 16px;
+}
+
+/* ── Summary cards row ── */
+.profile-summary {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 36px;
+}
+
+.profile-stat-card {
+    border: 2px solid #444;
+    padding: 18px 14px;
+    text-align: center;
+    box-sizing: border-box;
+}
+
+.profile-stat-card .stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    display: block;
+    line-height: 1.1;
+}
+
+.profile-stat-card .stat-label {
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #888;
+    margin-top: 4px;
+    display: block;
+}
+
+/* ── Chapter section ── */
+.chapter-section {
+    margin-bottom: 28px;
+}
+
+.chapter-heading {
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #888;
+    border-bottom: 1px solid #333;
+    padding-bottom: 6px;
+    margin-bottom: 10px;
+}
+
+/* ── Topic row ── */
+.topic-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid #222;
+}
+
+.topic-row:last-child {
+    border-bottom: none;
+}
+
+.topic-label {
+    flex: 1;
+    font-size: 0.92rem;
+    min-width: 0;
+}
+
+.topic-label .topic-num {
+    font-weight: 700;
+    margin-right: 6px;
+    color: #888;
+    font-size: 0.8rem;
+}
+
+/* ── Progress bar ── */
+.topic-bar-wrap {
+    width: 140px;
+    flex-shrink: 0;
+    height: 8px;
+    background: #333;
+    position: relative;
+}
+
+.topic-bar-fill {
+    height: 100%;
+    transition: width 0.4s ease;
+}
+
+/* ── Accuracy text ── */
+.topic-accuracy {
+    width: 52px;
+    text-align: right;
+    font-size: 0.88rem;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+/* ── Status badge ── */
+.topic-badge {
+    width: 90px;
+    flex-shrink: 0;
+    text-align: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border: 1.5px solid;
+    box-sizing: border-box;
+}
+
+.badge-strong   { color: #3cb371; border-color: #3cb371; }
+.badge-ok       { color: #d4a017; border-color: #d4a017; }
+.badge-weak     { color: #c0392b; border-color: #c0392b; }
+.badge-none     { color: #555;    border-color: #444; }
+
+/* ── Empty state ── */
+.profile-empty {
+    text-align: center;
+    color: #666;
+    margin-top: 60px;
+    font-size: 1rem;
+}
+
+/* ── Course filter tabs ── */
+.course-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+}
+
+.course-tab {
+    padding: 6px 18px;
+    border: 1.5px solid #555;
+    background: transparent;
+    color: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.course-tab:hover {
+    border-color: #aaa;
+}
+
+.course-tab.active {
+    border-color: #000;
+    background: #000;
+    color: #fff;
+}
+
+/* ── Loading skeleton ── */
+.profile-loading {
+    text-align: center;
+    color: #666;
+    margin-top: 60px;
+    font-size: 0.95rem;
+    font-style: italic;
+}
+
+/* ── Refresh button ── */
+.refresh-btn {
+    padding: 6px 16px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    border: 1.5px solid #555;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    transition: border-color 0.2s, background 0.2s;
+    margin-top: 8px;
+}
+
+.refresh-btn:hover {
+    border-color: #000;
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.refresh-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
