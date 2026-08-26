@@ -3,8 +3,6 @@ import { useQuizFetch } from '../context/QuizFetchContext.jsx';
 import '../styles/topic_quizzer.css';
 import '../styles/exam_quizzer.css';
 
-const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000').replace(/\/$/, '');
-
 // ===================== MARKDOWN RENDERER ===================== //
 const renderFormattedText = (text) => {
     if (!text || typeof text !== 'string') return text;
@@ -205,7 +203,7 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
         setCheckingCode(true);
 
         try {
-            const res = await fetch(`${BACKEND_URL}/api/engr102/quiz/check_answer`, {
+            const res = await fetch('/api/engr102/quiz/check_answer', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ question: currentQuestion[3].question, user_answer }),

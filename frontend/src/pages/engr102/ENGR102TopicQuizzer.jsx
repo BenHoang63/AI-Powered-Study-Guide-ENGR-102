@@ -6,8 +6,6 @@ import { useQuizFetch } from '../../context/QuizFetchContext.jsx';
 import '../../styles/styles.css';
 import '../../styles/topic_quizzer.css';
 
-const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000').replace(/\/$/, '');
-
 const TOPICS = [
     { id: 1, title: "Intro to Computing & Python" },
     { id: 2, title: "Variables & Expressions" },
@@ -170,7 +168,7 @@ const ENGR102TopicQuizzer = () => {
     const recordProgress = (attempts, correct) => {
         if (isDemoMode() || !user?.email) return;
         const [chapter, topic] = currentQuestion;
-        fetch(`${BACKEND_URL}/api/stats/record`, {
+        fetch('/api/stats/record', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -655,7 +653,7 @@ const ENGR102TopicQuizzer = () => {
         document.getElementById('explanation').hidden = false;
 
         try {
-            const response = await fetch(`${BACKEND_URL}/api/engr102/quiz/check_answer`, {
+            const response = await fetch("/api/engr102/quiz/check_answer", {
                 method: "POST",
                 headers: {
                     'Content-Type': 'application/json',
