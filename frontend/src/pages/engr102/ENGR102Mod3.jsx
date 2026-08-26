@@ -147,6 +147,8 @@ const ENGR102Mod3 = () => {
                                     </ul>
                                 </li>
                                 <li>With booleans, an empty string is <code>False</code>, but any non-empty string is <code>True</code>.</li>
+                                <li><span className='definition'>Note</span>: if you try to convert between incompatible data types, you
+                                    will get a <code>TypeError</code>.</li>
                             </ul>
                             <pre className="code">
                                 <span className="comment"># examples of what can work:</span><br></br>

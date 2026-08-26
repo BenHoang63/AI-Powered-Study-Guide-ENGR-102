@@ -2,6 +2,7 @@ import { authClient } from '../../scripts/auth';
 import { isAuthorized, isDemoMode } from '../../scripts/demo';
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuizFetch } from '../../context/QuizFetchContext.jsx';
 import '../../styles/styles.css';
 import '../../styles/topic_quizzer.css';
 
@@ -103,15 +104,17 @@ const ENGR102TopicQuizzer = () => {
     });
     const [loading, setLoading] = useState(false);
     const [prefetchLoading, setPrefetchLoading] = useState(false);
-    const [explanationText, setExplanationText] = useState("");
+    const [explanationText, setExplanationText] = useState(() => {
+        return sessionStorage.getItem('quizzer_explanationText') || '';
+    });
     const navigate = useNavigate();
 
-    // [chapter, topic, topic name, question JSON, current answer]
+    // [chapter, topic, topic name, question JSON, current answer, isAnsweredCorrectly, hasFailed, hasRecordedWrong]
     const [currentQuestion, setCurrentQuestion] = useState(() => {
-        try { return JSON.parse(sessionStorage.getItem('quizzer_currentQuestion')) || [1,1,"topic",{},null]; }
-        catch { return [1,1,"topic",{},null]; }
+        try { return JSON.parse(sessionStorage.getItem('quizzer_currentQuestion')) || [1,1,"topic",{},null,false,false,false]; }
+        catch { return [1,1,"topic",{},null,false,false,false]; }
     });
-    const [nextQuestion, setNextQuestion] = useState([1,1,"topic",{},null]); 
+    const [nextQuestion, setNextQuestion] = useState([1,1,"topic",{},null,false,false,false]); 
 
     // Code writing line numbers refs and state
     const lineNumbersRef = useRef(null);
@@ -120,7 +123,13 @@ const ENGR102TopicQuizzer = () => {
     const [lineCount, setLineCount] = useState(1);
     const [codeRunning, setCodeRunning] = useState(false);
     const [codeOutput, setCodeOutput] = useState(null);
-    const [stdinValue, setStdinValue] = useState("");
+    const [stdinValue, setStdinValue] = useState(() => {
+        return sessionStorage.getItem('quizzer_stdinValue') || "";
+    });
+
+    useEffect(() => {
+        sessionStorage.setItem('quizzer_stdinValue', stdinValue);
+    }, [stdinValue]);
     const [pyodideReady, setPyodideReady] = useState(false);
 
     const updateLineCount = (val) => {
@@ -153,6 +162,59 @@ const ENGR102TopicQuizzer = () => {
         });
     }, []);
 
+    // ========================== RECORD PROGRESS ========================== //
+
+    // Fire-and-forget: records a quiz attempt to the backend.
+    // Skipped silently in demo mode so guest sessions don't pollute stats.
+    const recordProgress = (attempts, correct) => {
+        if (isDemoMode() || !user?.email) return;
+        const [chapter, topic] = currentQuestion;
+        fetch('/api/stats/record', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email: user.email,
+                course: 'engr102',
+                chapter,
+                topic,
+                attempts,
+                correct
+            })
+        }).catch(err => console.error('[stats] Failed to record progress:', err));
+    };
+
+    const handleAnswerAttempt = (is_correct) => {
+        const isAnsweredCorrectly = currentQuestion[5] || false;
+        const hasFailed = currentQuestion[6] || false;
+        const hasRecordedWrong = currentQuestion[7] || false;
+
+        if (is_correct) {
+            if (!isAnsweredCorrectly) {
+                if (hasFailed) {
+                    recordProgress(0, 1);
+                } else {
+                    recordProgress(1, 1);
+                }
+                setCurrentQuestion(prev => [
+                    prev[0], prev[1], prev[2], prev[3], prev[4],
+                    true,
+                    prev[6] || false,
+                    prev[7] || false
+                ]);
+            }
+        } else {
+            if (!hasRecordedWrong) {
+                recordProgress(2, 0);
+            }
+            setCurrentQuestion(prev => [
+                prev[0], prev[1], prev[2], prev[3], prev[4],
+                false,
+                true,
+                true
+            ]);
+        }
+    };
+
     // Persist selectedTopics, selectedTypes, quizMode, and currentQuestion to sessionStorage
     useEffect(() => {
         sessionStorage.setItem('quizzer_selectedTopics', JSON.stringify(selectedTopics));
@@ -170,13 +232,20 @@ const ENGR102TopicQuizzer = () => {
         sessionStorage.setItem('quizzer_currentQuestion', JSON.stringify(currentQuestion));
     }, [currentQuestion]);
 
-    // Pre-fetch the next question as soon as the current one is displayed
     useEffect(() => {
-        if (quizMode && currentQuestion[3]?.question) {
+        sessionStorage.setItem('quizzer_explanationText', explanationText);
+    }, [explanationText]);
+
+    // Pre-fetch the next question as soon as the current one is displayed
+    // Guard: skip if getQuestion is still actively running (to avoid double-fetch on remount)
+    const fetchInProgressRef = useRef(false);
+    useEffect(() => {
+        if (quizMode && currentQuestion[3]?.question && !fetchInProgressRef.current) {
             prefetchNextQuestion();
         }
     }, [currentQuestion[3]?.question]);
     useEffect(() => {
+        let cancelled = false;
         const savedQuizMode = sessionStorage.getItem('quizzer_quizMode') === 'true';
         if (savedQuizMode) {
             const topic_select = document.getElementById('topic-select');
@@ -191,9 +260,28 @@ const ENGR102TopicQuizzer = () => {
                 catch { return null; }
             })();
             if (savedQ && savedQ[3] && savedQ[3].type) {
-                start_question_setup(savedQ);
+                if (savedQ[5] === true) {
+                    // Question was already answered correctly — restore the post-answer UI.
+                    const submitBtn = document.getElementById('submit');
+                    const nextBtn   = document.getElementById('next-question');
+                    const expEl     = document.getElementById('explanation');
+                    if (submitBtn) submitBtn.hidden = true;
+                    if (nextBtn)   nextBtn.hidden   = false;
+                    if (expEl)     expEl.hidden     = false;
+                } else {
+                    start_question_setup(savedQ);
+                }
+            } else {
+                // If savedQ is missing or was left in a blank/loading state ({}), fetch a new question!
+                fetchInProgressRef.current = true;
+                getQuestion().then((qData) => {
+                    if (cancelled) return; // StrictMode or stale mount — discard
+                    fetchInProgressRef.current = false;
+                    if (qData) start_question_setup(qData);
+                });
             }
         }
+        return () => { cancelled = true; };
     }, []);
 
 
@@ -242,7 +330,7 @@ const ENGR102TopicQuizzer = () => {
         setQuizMode(!quizMode);
         if (clearQuestion) {
             // Clear saved question so a fresh one loads next time
-            const blank = [1, 1, "topic", {}, null];
+            const blank = [1, 1, "topic", {}, null, false, false, false];
             setCurrentQuestion(blank);
             sessionStorage.removeItem('quizzer_currentQuestion');
             sessionStorage.setItem('quizzer_quizMode', 'false');
@@ -252,96 +340,33 @@ const ENGR102TopicQuizzer = () => {
 
     // ========================== GET QUESTION ========================== //
 
+    const { fetchQuestionData, prefetch, consumePrefetch } = useQuizFetch();
 
-    const nextQuestionPromiseRef = useRef(null);
-
-    const fetchQuestionData = async () => {
-        let questionType = '';
-        let ch = 1; // chapter
-        let tp = 1; // topic
-
-        // get question type from user-selected types (fallback to all types)
-        const availableTypes = selectedTypes.length > 0 ? selectedTypes : Object.keys(QUESTION_TYPE_LABELS);
-        questionType = availableTypes[Math.floor(Math.random() * availableTypes.length)];
-
-        // testing
-        // questionType = 'multiple_answer';
-
-        // get chapter
-        ch = Math.ceil(Math.random() * selectedTopics.length);
-        if (ch === 0) { ch = 1; }
-        ch = selectedTopics[ch - 1];
-
-        // get topic
-        try {
-            const response = await fetch('/api/engr102/' + ch + '/num_topics');
-            if (!response.ok) throw new Error();
-            const data = await response.json();
-            tp = Math.ceil(Math.random() * data.topicCount);
-            if (tp === 0) { tp = 1; }
-        } catch (err) {
-            console.error("[Error] ENGR102TopicQuizzer: could not get topic count\n" + err);
-            return null;
-        }
-
-        // fetch question
-        try {
-            const response2 = await fetch('/api/engr102/quiz/question', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    chapter: ch,
-                    topic: tp,
-                    type: questionType
-                })
-            });
-            if (!response2.ok) throw new Error(response2.error);
-            const data2 = await response2.json();
-
-            // console.log("Fetched question topic:", data2.topic_name);
-
-            // console.log("data2", data2.llm_response);
-            return [ch, tp, data2.topic_name, data2.llm_response, null];
-        } catch (err) {
-            console.error("[Error] ENGR102TopicQuizzer: could not get question from server\n" + err);
-            return null;
-        }
-    };
+    const getFetchConfig = () => ({
+        chapters: selectedTopics.length > 0 ? selectedTopics : [1],
+        types: selectedTypes.length > 0 ? selectedTypes : Object.keys(QUESTION_TYPE_LABELS),
+        extraSlots: 8,
+    });
 
     const prefetchNextQuestion = () => {
-        // console.log("Pre-fetching next question in background...");
         setPrefetchLoading(true);
-        const promise = fetchQuestionData();
-        nextQuestionPromiseRef.current = promise;
-
-        promise.then(() => {
-            setPrefetchLoading(false);
-        }).catch((err) => {
-            console.error("Prefetch error:", err);
-            setPrefetchLoading(false);
-        });
+        prefetch('topicQuizzer', getFetchConfig());
     };
 
     const getQuestion = async () => {
         let qData = null;
 
-        // If a pre-fetch promise is pending or completed, use it
-        if (nextQuestionPromiseRef.current) {
-            // console.log("Using pre-fetched question!");
-            const promise = nextQuestionPromiseRef.current;
-            nextQuestionPromiseRef.current = null;
-            qData = await promise;
-        }
+        // Try to consume the prefetched question from the global context
+        qData = await consumePrefetch('topicQuizzer');
 
         // If no pre-fetched data available, fetch now
         if (!qData) {
             setLoading(true);
-            qData = await fetchQuestionData();
+            qData = await fetchQuestionData(getFetchConfig());
             setLoading(false);
         }
 
+        setPrefetchLoading(false);
         if (qData) {
             setCurrentQuestion(qData);
         }
@@ -405,7 +430,7 @@ const ENGR102TopicQuizzer = () => {
 
     const mc_select = (choice) => {
         // set current question state with selected choice
-        setCurrentQuestion(prev => [prev[0], prev[1], prev[2], prev[3], choice]);
+        setCurrentQuestion(prev => [prev[0], prev[1], prev[2], prev[3], choice, prev[5], prev[6], prev[7]]);
         const submitBtn = document.getElementById('submit');
         if (submitBtn) {
             submitBtn.disabled = false;
@@ -421,11 +446,12 @@ const ENGR102TopicQuizzer = () => {
             document.getElementById('explanation').hidden = false;
             document.getElementById('submit').hidden = true;
             document.getElementById('next-question').hidden = false;
+            handleAnswerAttempt(true);
         }
         else {
             // disable answer choice 
             document.getElementById(`mc${currentQuestion[4]}`).disabled = true;
-            setCurrentQuestion([currentQuestion[0], currentQuestion[1], currentQuestion[2], currentQuestion[3], null]);
+            handleAnswerAttempt(false);
             setExplanationText("Incorrect. Try again.");
             document.getElementById('explanation').hidden = false;
         }
@@ -444,15 +470,17 @@ const ENGR102TopicQuizzer = () => {
     }
 */
     const sa_setup = (qData = currentQuestion) => { // can also be used for code writing
+        const savedVal = qData?.[4] || "";
         const sa = document.getElementById('sa_answer');
-        if (sa) sa.value = "";
+        if (sa) sa.value = savedVal;
         const cw = document.getElementById('cw_answer');
-        if (cw) cw.value = "";
-        setLineCount(1);
+        if (cw) {
+            cw.value = savedVal;
+            updateLineCount(savedVal);
+        }
         setExplanationText("");
         setCodeOutput(null);
         setCodeRunning(false);
-        setStdinValue("");
 
         document.getElementById('explanation').hidden = true;
         document.getElementById('submit').hidden = false;
@@ -485,9 +513,11 @@ const ENGR102TopicQuizzer = () => {
             document.getElementById('explanation').hidden = false;
             document.getElementById('submit').hidden = true;
             document.getElementById('next-question').hidden = false;
+            handleAnswerAttempt(true);
         } else {
             setExplanationText("Incorrect. Try again.");
             document.getElementById('explanation').hidden = false;
+            handleAnswerAttempt(false);
         }
     };
 
@@ -516,12 +546,27 @@ const ENGR102TopicQuizzer = () => {
         const stdinLines = stdinValue.split("\n").filter(l => l !== "");
 
         const result = await new Promise((resolve) => {
+            let timerId = null;
+
             const handler = (e) => {
                 if (e.data.id === id) {
+                    clearTimeout(timerId);
                     worker.removeEventListener('message', handler);
                     resolve(e.data);
                 }
             };
+
+            timerId = setTimeout(() => {
+                worker.removeEventListener('message', handler);
+                try { worker.terminate(); } catch (err) {}
+                pyodideWorkerRef.current = null; // Re-create worker on next run
+                resolve({
+                    stdout: "",
+                    stderr: "TimeLimitExceeded: Execution timed out after 5 seconds.\nCheck for infinite loops (e.g. while True) or missing input() lines in Stdin.",
+                    exitCode: 124
+                });
+            }, 5000);
+
             worker.addEventListener('message', handler);
             worker.postMessage({ id, code, stdinLines });
         });
@@ -630,9 +675,11 @@ const ENGR102TopicQuizzer = () => {
                 document.getElementById('explanation').hidden = false;
                 document.getElementById('submit').hidden = true;
                 document.getElementById('next-question').hidden = false;
+                handleAnswerAttempt(true);
             } else {
                 setExplanationText(`Incorrect. ${explanation || "Try again."}`);
                 document.getElementById('explanation').hidden = false;
+                handleAnswerAttempt(false);
             }
         } catch (err) {
             console.error("[Error] ENGR102TopicQuizzer: could not retrieve answer for code writing", err);
@@ -666,7 +713,7 @@ const ENGR102TopicQuizzer = () => {
             btn.style.backgroundColor = '';
             btn.disabled = false;
         });
-        setCurrentQuestion(prev => [prev[0], prev[1], prev[2], prev[3], []]);
+        setCurrentQuestion(prev => [prev[0], prev[1], prev[2], prev[3], [], prev[5], prev[6], prev[7]]);
         setExplanationText("");
 
         const exp = document.getElementById('explanation');
@@ -696,7 +743,7 @@ const ENGR102TopicQuizzer = () => {
                 submitBtn.disabled = nextSelected.length === 0;
             }
 
-            return [prev[0], prev[1], prev[2], prev[3], nextSelected];
+            return [prev[0], prev[1], prev[2], prev[3], nextSelected, prev[5], prev[6], prev[7]];
         });
     };
 
@@ -721,9 +768,11 @@ const ENGR102TopicQuizzer = () => {
             document.getElementById('explanation').hidden = false;
             document.getElementById('submit').hidden = true;
             document.getElementById('next-question').hidden = false;
+            handleAnswerAttempt(true);
         } else {
             setExplanationText("Incorrect. Try again.");
             document.getElementById('explanation').hidden = false;
+            handleAnswerAttempt(false);
         }
     };
 
@@ -891,7 +940,16 @@ const ENGR102TopicQuizzer = () => {
                     {/* Short Answer Input */}
                     {currentQuestion[3]?.type === 'short_answer' && (
                         <div className='block' id='short answer'>
-                            <textarea id='sa_answer' className='sa_box' placeholder='Your answer here'></textarea>
+                            <textarea
+                                id='sa_answer'
+                                className='sa_box'
+                                placeholder='Your answer here'
+                                value={currentQuestion[4] || ''}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setCurrentQuestion(prev => [prev[0], prev[1], prev[2], prev[3], val, prev[5], prev[6], prev[7]]);
+                                }}
+                            ></textarea>
                         </div>
                     )}
 
@@ -908,8 +966,13 @@ const ENGR102TopicQuizzer = () => {
                                     id='cw_answer'
                                     className='cw_box'
                                     ref={textareaRef}
+                                    value={currentQuestion[4] || ''}
                                     onKeyDown={handleCodeWritingKeyDown}
-                                    onInput={(e) => updateLineCount(e.target.value)}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        updateLineCount(val);
+                                        setCurrentQuestion(prev => [prev[0], prev[1], prev[2], prev[3], val, prev[5], prev[6], prev[7]]);
+                                    }}
                                     onScroll={handleCwScroll}
                                 ></textarea>
                             </div>
@@ -1018,6 +1081,8 @@ const ENGR102TopicQuizzer = () => {
                         hidden={true}
                         disabled={loading}
                         onClick={ async () => {
+                            // Clear question immediately so it disappears while the next one loads
+                            setCurrentQuestion(prev => [prev[0], prev[1], prev[2], {}, null, false, false, false]);
                             const nextBtn = document.getElementById('next-question');
                             if (nextBtn) nextBtn.hidden = true;
                             const sub = document.getElementById('submit');
@@ -1041,6 +1106,9 @@ const ENGR102TopicQuizzer = () => {
                         </p>
                     )}
 
+                    <p style={{ color: "#888", fontSize: "0.8rem", marginTop: "30px", fontStyle: "italic" }}>
+                        AI can make mistakes. Double-check important facts and concepts.
+                    </p>
 
                 </div>
             </section>

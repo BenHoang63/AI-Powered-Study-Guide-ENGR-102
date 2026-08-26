@@ -20,6 +20,7 @@ import ENGR102Exam2 from './pages/engr102/ENGR102Exam2.jsx';
 import ENGR102TopicQuizzer from './pages/engr102/ENGR102TopicQuizzer.jsx';
 import HowToUseSTDIn from './pages/other/stdinTutorialPage.jsx'
 import Navbar from './components/navbar/Navbar.jsx';
+import UserProfile from './pages/UserProfile.jsx';
 
 function App() {
 	const location = useLocation();
@@ -29,10 +30,14 @@ function App() {
 		<>
 			{showNavbar && <Navbar />}
 			<Routes>
+				{/* Main Routes */}
 				<Route path="/" element={<LoginPage />} />
 				<Route path="/home" element={<HomePage />} />
 				<Route path="/feedback" element={<FeedbackPage />} />
 				<Route path="/engr102" element={<ENGR102Home />} />
+				<Route path="/userprofile" element={<UserProfile />} />
+
+				{/* ENGR 102 Routes */}
 				<Route path="/engr102/module1" element={<ENGR102Mod1 />} />
 				<Route path="/engr102/module2" element={<ENGR102Mod2 />} />
 				<Route path="/engr102/module3" element={<ENGR102Mod3 />} />
@@ -48,6 +53,8 @@ function App() {
 				<Route path="/engr102/exam1" element={<ENGR102Exam1 />} />
 				<Route path="/engr102/exam2" element={<ENGR102Exam2 />} />
 				<Route path="/engr102/topicquizzer" element={<ENGR102TopicQuizzer />} />
+
+				{/* Other Routes */}
 				<Route path="/other/how-to-use-stdin" element={<HowToUseSTDIn />} />
 			</Routes>
 		</>

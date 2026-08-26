@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useQuizFetch } from '../context/QuizFetchContext.jsx';
 import '../styles/topic_quizzer.css';
 import '../styles/exam_quizzer.css';
 
@@ -68,7 +69,14 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
     const lineNumbersRef        = useRef(null);
     const textareaRef           = useRef(null);
     const [lineCount, setLineCount] = useState(1);
-    const nextQuestionPromiseRef    = useRef(null);
+
+    const { fetchQuestionData, prefetch, consumePrefetch } = useQuizFetch();
+
+    const getFetchConfig = () => ({
+        chapters,
+        types: ['code_writing'],
+        extraSlots: 5,
+    });
 
     useEffect(() => {
         if (currentQuestion) {
@@ -81,10 +89,19 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
     }, [quizStarted]);
 
     useEffect(() => {
-        if (quizStarted && currentQuestion) {
+        if (quizStarted && (!currentQuestion || !currentQuestion[3]?.question)) {
+            getQuestion().then(() => cw_setup());
+        } else if (quizStarted && currentQuestion) {
             setTimeout(() => cw_setup(), 50);
         }
     }, []);
+
+    // Pre-fetch the next question as soon as the current question is displayed
+    useEffect(() => {
+        if (quizStarted && currentQuestion?.[3]?.question) {
+            prefetchNextQuestion();
+        }
+    }, [quizStarted, currentQuestion?.[3]?.question]);
 
     const updateLineCount = (val) => {
         setLineCount(Math.max(1, (val || '').split('\n').length));
@@ -96,65 +113,36 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
         }
     };
 
-    const fetchQuestionData = async () => {
-        const ch = chapters[Math.floor(Math.random() * chapters.length)];
-        let tp = 1;
-        try {
-            const res = await fetch(`/api/engr102/${ch}/num_topics`);
-            if (!res.ok) throw new Error();
-            const data = await res.json();
-            tp = Math.ceil(Math.random() * data.topicCount) || 1;
-        } catch (err) {
-            console.error('[ExamQuizzer] Could not get topic count:', err);
-            return null;
-        }
-        try {
-            const res2 = await fetch('/api/engr102/quiz/question', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ chapter: ch, topic: tp, type: 'code_writing' }),
-            });
-            if (!res2.ok) throw new Error();
-            const data2 = await res2.json();
-            console.log('[ExamQuizzer] Fetched:', data2.topic_name);
-            return [ch, tp, data2.topic_name, data2.llm_response, null];
-        } catch (err) {
-            console.error('[ExamQuizzer] Could not fetch question:', err);
-            return null;
-        }
-    };
-
     const prefetchNextQuestion = () => {
         setPrefetchLoading(true);
-        const promise = fetchQuestionData();
-        nextQuestionPromiseRef.current = promise;
-        promise
-            .then(() => {
-                setPrefetchLoading(false);
-                const btn = document.getElementById('eq-next');
-                if (btn) btn.hidden = false;
-            })
-            .catch(() => setPrefetchLoading(false));
+        prefetch('examQuizzer', getFetchConfig());
     };
 
     const getQuestion = async () => {
         let qData = null;
-        if (nextQuestionPromiseRef.current) {
-            const p = nextQuestionPromiseRef.current;
-            nextQuestionPromiseRef.current = null;
-            qData = await p;
-        }
+
+        // Try to consume the prefetched question from the global context
+        qData = await consumePrefetch('examQuizzer');
+
+        // If no pre-fetched data available, fetch now
         if (!qData) {
             setLoading(true);
-            qData = await fetchQuestionData();
+            qData = await fetchQuestionData(getFetchConfig());
             setLoading(false);
         }
+
+        setPrefetchLoading(false);
         if (qData) setCurrentQuestion(qData);
         return qData;
     };
 
-    const cw_setup = () => {
-        setLineCount(1);
+    const cw_setup = (qData = currentQuestion) => {
+        const savedCode = qData?.[4] || '';
+        const cw = document.getElementById('cw_answer');
+        if (cw) {
+            cw.value = savedCode;
+            updateLineCount(savedCode);
+        }
         setExplanationText('');
         const exp = document.getElementById('eq-explanation');
         if (exp) exp.hidden = true;
@@ -222,7 +210,8 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
                 setExplanationText(`Correct! ${data.explanation || ''}`);
                 document.getElementById('eq-explanation').hidden = false;
                 document.getElementById('eq-submit').hidden = true;
-                prefetchNextQuestion();
+                const nxt = document.getElementById('eq-next');
+                if (nxt) nxt.hidden = false;
             } else {
                 setExplanationText(`Incorrect. ${data.explanation || 'Try again.'}`);
                 document.getElementById('eq-explanation').hidden = false;
@@ -339,8 +328,13 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
                                     id="cw_answer"
                                     className="cw_box"
                                     ref={textareaRef}
+                                    value={currentQuestion?.[4] || ''}
                                     onKeyDown={handleCodeWritingKeyDown}
-                                    onInput={(e) => updateLineCount(e.target.value)}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        updateLineCount(val);
+                                        setCurrentQuestion(prev => [prev[0], prev[1], prev[2], prev[3], val]);
+                                    }}
                                     onScroll={handleCwScroll}
                                 />
                             </div>
@@ -368,6 +362,7 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
                                 hidden={true}
                                 disabled={loading}
                                 onClick={async () => {
+                                    setCurrentQuestion(null);
                                     document.getElementById('eq-next').hidden = true;
                                     document.getElementById('eq-submit').hidden = false;
                                     document.getElementById('eq-explanation').hidden = true;
@@ -387,6 +382,10 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
                     {prefetchLoading && (
                         <p className="eq-loading">Loading next question...</p>
                     )}
+
+                    <p style={{ color: "#888", fontSize: "0.8rem", marginTop: "30px", textAlign: "center", fontStyle: "italic" }}>
+                        AI can make mistakes. Double-check important facts and concepts.
+                    </p>
 
                 </div>
             )}
