@@ -3,7 +3,7 @@ import { useQuizFetch } from '../context/QuizFetchContext.jsx';
 import '../styles/topic_quizzer.css';
 import '../styles/exam_quizzer.css';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000').replace(/\/$/, '');
 
 // ===================== MARKDOWN RENDERER ===================== //
 const renderFormattedText = (text) => {

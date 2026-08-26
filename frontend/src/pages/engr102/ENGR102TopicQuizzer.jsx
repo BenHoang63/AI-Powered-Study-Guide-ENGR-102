@@ -6,7 +6,7 @@ import { useQuizFetch } from '../../context/QuizFetchContext.jsx';
 import '../../styles/styles.css';
 import '../../styles/topic_quizzer.css';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000').replace(/\/$/, '');
 
 const TOPICS = [
     { id: 1, title: "Intro to Computing & Python" },
