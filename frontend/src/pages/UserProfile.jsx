@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/user_profile.css';
 
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+
 // ── Course definitions ──
 // Add new courses here as the app grows.
 const COURSES = [
@@ -77,7 +79,7 @@ const UserProfile = () => {
     const fetchStats = () => {
         if (!user?.email) return;
         setLoading(true);
-        fetch(`/api/stats/${activeCourse}/${encodeURIComponent(user.email)}`)
+        fetch(`${BACKEND_URL}/api/stats/${activeCourse}/${encodeURIComponent(user.email)}`)
             .then(r => r.json())
             .then(data => {
                 setStats(data.stats || []);
