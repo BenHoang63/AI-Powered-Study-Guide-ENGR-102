@@ -498,7 +498,7 @@ app.get("/api/stats/:course/:email", async (req, res) => {
     }
 });
 // Catch-all route for React Router (must be AFTER all API routes)
-app.get("*", (req, res) => {
+app.get(/.*/, (req, res) => {
     res.sendFile(path.join(__dirname, "../frontend/dist/index.html"));
 });
 app.listen(3000, () => {
