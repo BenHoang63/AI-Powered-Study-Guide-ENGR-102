@@ -1,5 +1,6 @@
 import { authClient } from '../scripts/auth';
 import { isAuthorized, isDemoMode } from '../scripts/demo';
+import { BACKEND_URL } from '../scripts/config';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/user_profile.css';
@@ -77,7 +78,7 @@ const UserProfile = () => {
     const fetchStats = () => {
         if (!user?.email) return;
         setLoading(true);
-        fetch(`/api/stats/${activeCourse}/${encodeURIComponent(user.email)}`)
+        fetch(`${BACKEND_URL}/api/stats/${activeCourse}/${encodeURIComponent(user.email)}`)
             .then(r => r.json())
             .then(data => {
                 setStats(data.stats || []);

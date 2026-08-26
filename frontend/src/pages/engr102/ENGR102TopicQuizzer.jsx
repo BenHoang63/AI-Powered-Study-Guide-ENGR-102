@@ -1,5 +1,6 @@
 import { authClient } from '../../scripts/auth';
 import { isAuthorized, isDemoMode } from '../../scripts/demo';
+import { BACKEND_URL } from '../../scripts/config';
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuizFetch } from '../../context/QuizFetchContext.jsx';
@@ -169,7 +170,7 @@ const ENGR102TopicQuizzer = () => {
     const recordProgress = (attempts, correct) => {
         if (isDemoMode() || !user?.email) return;
         const [chapter, topic] = currentQuestion;
-        fetch('/api/stats/record', {
+        fetch(`${BACKEND_URL}/api/stats/record`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -654,7 +655,7 @@ const ENGR102TopicQuizzer = () => {
         document.getElementById('explanation').hidden = false;
 
         try {
-            const response = await fetch("/api/engr102/quiz/check_answer", {
+            const response = await fetch(`${BACKEND_URL}/api/engr102/quiz/check_answer`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

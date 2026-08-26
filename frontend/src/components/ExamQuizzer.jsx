@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuizFetch } from '../context/QuizFetchContext.jsx';
+import { BACKEND_URL } from '../scripts/config.js';
 import '../styles/topic_quizzer.css';
 import '../styles/exam_quizzer.css';
 
@@ -199,7 +200,7 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
         setExplanationText('Evaluating your code...');
         document.getElementById('eq-explanation').hidden = false;
         try {
-            const res = await fetch('/api/engr102/quiz/check_answer', {
+            const res = await fetch(`${BACKEND_URL}/api/engr102/quiz/check_answer`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ question: currentQuestion[3].question, user_answer }),

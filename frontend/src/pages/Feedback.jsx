@@ -1,11 +1,10 @@
 import { authClient } from '../scripts/auth';
 import { isAuthorized, isDemoMode } from '../scripts/demo';
+import { BACKEND_URL } from '../scripts/config';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/styles.css';
 import '../styles/feedback.css';
-
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
 
 const CATEGORIES = [
     { value: 'bug',        label: 'Bug Report' },
