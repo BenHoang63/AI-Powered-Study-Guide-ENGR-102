@@ -2,6 +2,7 @@ import { authClient } from '../../scripts/auth';
 import { isAuthorized, isDemoMode } from '../../scripts/demo';
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuizFetch } from '../../context/QuizFetchContext.jsx';
 import '../../styles/styles.css';
 import '../../styles/topic_quizzer.css';
 
@@ -236,12 +237,15 @@ const ENGR102TopicQuizzer = () => {
     }, [explanationText]);
 
     // Pre-fetch the next question as soon as the current one is displayed
+    // Guard: skip if getQuestion is still actively running (to avoid double-fetch on remount)
+    const fetchInProgressRef = useRef(false);
     useEffect(() => {
-        if (quizMode && currentQuestion[3]?.question) {
+        if (quizMode && currentQuestion[3]?.question && !fetchInProgressRef.current) {
             prefetchNextQuestion();
         }
     }, [currentQuestion[3]?.question]);
     useEffect(() => {
+        let cancelled = false;
         const savedQuizMode = sessionStorage.getItem('quizzer_quizMode') === 'true';
         if (savedQuizMode) {
             const topic_select = document.getElementById('topic-select');
@@ -258,8 +262,6 @@ const ENGR102TopicQuizzer = () => {
             if (savedQ && savedQ[3] && savedQ[3].type) {
                 if (savedQ[5] === true) {
                     // Question was already answered correctly — restore the post-answer UI.
-                    // start_question_setup would reset everything, so we skip it and
-                    // directly set the correct button/explanation visibility.
                     const submitBtn = document.getElementById('submit');
                     const nextBtn   = document.getElementById('next-question');
                     const expEl     = document.getElementById('explanation');
@@ -271,11 +273,15 @@ const ENGR102TopicQuizzer = () => {
                 }
             } else {
                 // If savedQ is missing or was left in a blank/loading state ({}), fetch a new question!
+                fetchInProgressRef.current = true;
                 getQuestion().then((qData) => {
+                    if (cancelled) return; // StrictMode or stale mount — discard
+                    fetchInProgressRef.current = false;
                     if (qData) start_question_setup(qData);
                 });
             }
         }
+        return () => { cancelled = true; };
     }, []);
 
 
@@ -334,96 +340,33 @@ const ENGR102TopicQuizzer = () => {
 
     // ========================== GET QUESTION ========================== //
 
+    const { fetchQuestionData, prefetch, consumePrefetch } = useQuizFetch();
 
-    const nextQuestionPromiseRef = useRef(null);
-
-    const fetchQuestionData = async () => {
-        let questionType = '';
-        let ch = 1; // chapter
-        let tp = 1; // topic
-
-        // get question type from user-selected types (fallback to all types)
-        const availableTypes = selectedTypes.length > 0 ? selectedTypes : Object.keys(QUESTION_TYPE_LABELS);
-        questionType = availableTypes[Math.floor(Math.random() * availableTypes.length)];
-
-        // testing
-        // questionType = 'multiple_answer';
-
-        // get chapter
-        ch = Math.ceil(Math.random() * selectedTopics.length);
-        if (ch === 0) { ch = 1; }
-        ch = selectedTopics[ch - 1];
-
-        // get topic
-        try {
-            const response = await fetch('/api/engr102/' + ch + '/num_topics');
-            if (!response.ok) throw new Error();
-            const data = await response.json();
-            tp = Math.ceil(Math.random() * data.topicCount);
-            if (tp === 0) { tp = 1; }
-        } catch (err) {
-            console.error("[Error] ENGR102TopicQuizzer: could not get topic count\n" + err);
-            return null;
-        }
-
-        // fetch question
-        try {
-            const response2 = await fetch('/api/engr102/quiz/question', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    chapter: ch,
-                    topic: tp,
-                    type: questionType
-                })
-            });
-            if (!response2.ok) throw new Error(response2.error);
-            const data2 = await response2.json();
-
-            // console.log("Fetched question topic:", data2.topic_name);
-
-            // console.log("data2", data2.llm_response);
-            return [ch, tp, data2.topic_name, data2.llm_response, null, false, false, false];
-        } catch (err) {
-            console.error("[Error] ENGR102TopicQuizzer: could not get question from server\n" + err);
-            return null;
-        }
-    };
+    const getFetchConfig = () => ({
+        chapters: selectedTopics.length > 0 ? selectedTopics : [1],
+        types: selectedTypes.length > 0 ? selectedTypes : Object.keys(QUESTION_TYPE_LABELS),
+        extraSlots: 8,
+    });
 
     const prefetchNextQuestion = () => {
-        // console.log("Pre-fetching next question in background...");
         setPrefetchLoading(true);
-        const promise = fetchQuestionData();
-        nextQuestionPromiseRef.current = promise;
-
-        promise.then(() => {
-            setPrefetchLoading(false);
-        }).catch((err) => {
-            console.error("Prefetch error:", err);
-            setPrefetchLoading(false);
-        });
+        prefetch('topicQuizzer', getFetchConfig());
     };
 
     const getQuestion = async () => {
         let qData = null;
 
-        // If a pre-fetch promise is pending or completed, use it
-        if (nextQuestionPromiseRef.current) {
-            // console.log("Using pre-fetched question!");
-            const promise = nextQuestionPromiseRef.current;
-            nextQuestionPromiseRef.current = null;
-            qData = await promise;
-        }
+        // Try to consume the prefetched question from the global context
+        qData = await consumePrefetch('topicQuizzer');
 
         // If no pre-fetched data available, fetch now
         if (!qData) {
             setLoading(true);
-            qData = await fetchQuestionData();
+            qData = await fetchQuestionData(getFetchConfig());
             setLoading(false);
         }
 
+        setPrefetchLoading(false);
         if (qData) {
             setCurrentQuestion(qData);
         }

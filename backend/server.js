@@ -120,7 +120,7 @@ app.post("/api/engr102/quiz/question", async (req, res) => {
 			return res.status(404).json({ error: "Topic not found" });
 		}
 		const question_topic = result.rows[0];
-		console.log(`[RAG] Retrieved: "${question_topic.topic_name}" (similarity: ${Number(question_topic.similarity).toFixed(4)})`);
+		// console.log(`[RAG] Retrieved: "${question_topic.topic_name}" (similarity: ${Number(question_topic.similarity).toFixed(4)})`);
 		topic_name = question_topic.topic_name;
 		context = question_topic.context;
 		sample = question_topic.question;

@@ -64,6 +64,20 @@ const HomePage = () => {
                     <button>ETAM</button>
                 </div>
             </section>
+
+            <footer style={{
+                marginTop: "60px",
+                padding: "20px 10px",
+                textAlign: "center",
+                fontSize: "0.85rem",
+                color: "#777",
+                borderTop: "1px solid #eee"
+            }}>
+                <p style={{ margin: 0 }}>
+                    <strong>Disclaimer:</strong> This application is an independent personal project created as a supplemental study tool. 
+                    It is not affiliated with, endorsed by, or sponsored by Texas A&M University.
+                </p>
+            </footer>
         </>
     )
 

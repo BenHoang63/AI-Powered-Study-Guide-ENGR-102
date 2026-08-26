@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useQuizFetch } from '../context/QuizFetchContext.jsx';
 import '../styles/topic_quizzer.css';
 import '../styles/exam_quizzer.css';
 
@@ -68,7 +69,14 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
     const lineNumbersRef        = useRef(null);
     const textareaRef           = useRef(null);
     const [lineCount, setLineCount] = useState(1);
-    const nextQuestionPromiseRef    = useRef(null);
+
+    const { fetchQuestionData, prefetch, consumePrefetch } = useQuizFetch();
+
+    const getFetchConfig = () => ({
+        chapters,
+        types: ['code_writing'],
+        extraSlots: 5,
+    });
 
     useEffect(() => {
         if (currentQuestion) {
@@ -105,56 +113,25 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
         }
     };
 
-    const fetchQuestionData = async () => {
-        const ch = chapters[Math.floor(Math.random() * chapters.length)];
-        let tp = 1;
-        try {
-            const res = await fetch(`/api/engr102/${ch}/num_topics`);
-            if (!res.ok) throw new Error();
-            const data = await res.json();
-            tp = Math.ceil(Math.random() * data.topicCount) || 1;
-        } catch (err) {
-            console.error('[ExamQuizzer] Could not get topic count:', err);
-            return null;
-        }
-        try {
-            const res2 = await fetch('/api/engr102/quiz/question', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ chapter: ch, topic: tp, type: 'code_writing' }),
-            });
-            if (!res2.ok) throw new Error();
-            const data2 = await res2.json();
-            // console.log('[ExamQuizzer] Fetched:', data2.topic_name);
-            return [ch, tp, data2.topic_name, data2.llm_response, null];
-        } catch (err) {
-            console.error('[ExamQuizzer] Could not fetch question:', err);
-            return null;
-        }
-    };
-
     const prefetchNextQuestion = () => {
-        if (nextQuestionPromiseRef.current) return;
         setPrefetchLoading(true);
-        const promise = fetchQuestionData();
-        nextQuestionPromiseRef.current = promise;
-        promise
-            .then(() => setPrefetchLoading(false))
-            .catch(() => setPrefetchLoading(false));
+        prefetch('examQuizzer', getFetchConfig());
     };
 
     const getQuestion = async () => {
         let qData = null;
-        if (nextQuestionPromiseRef.current) {
-            const p = nextQuestionPromiseRef.current;
-            nextQuestionPromiseRef.current = null;
-            qData = await p;
-        }
+
+        // Try to consume the prefetched question from the global context
+        qData = await consumePrefetch('examQuizzer');
+
+        // If no pre-fetched data available, fetch now
         if (!qData) {
             setLoading(true);
-            qData = await fetchQuestionData();
+            qData = await fetchQuestionData(getFetchConfig());
             setLoading(false);
         }
+
+        setPrefetchLoading(false);
         if (qData) setCurrentQuestion(qData);
         return qData;
     };
