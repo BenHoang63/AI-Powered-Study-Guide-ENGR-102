@@ -47,12 +47,20 @@ const FeedbackPage = () => {
         });
     }, []);
 
+    const MAX_CHARS = 1000;
+
     const handleSubmit = async (e) => {
         e.preventDefault();
 
         if (!message.trim()) {
             setStatus('error');
             setStatusMsg('Please enter a message before submitting.');
+            return;
+        }
+
+        if (message.length > MAX_CHARS) {
+            setStatus('error');
+            setStatusMsg(`Message exceeds character limit of ${MAX_CHARS} characters.`);
             return;
         }
 
@@ -140,14 +148,20 @@ const FeedbackPage = () => {
                     </select>
 
                     {/* Message */}
-                    <label className="feedback-label" htmlFor="feedback-message">
-                        Message
-                    </label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: '10px' }}>
+                        <label className="feedback-label" htmlFor="feedback-message" style={{ margin: 0 }}>
+                            Message
+                        </label>
+                        <span className="feedback-char-count" style={{ fontSize: '0.8rem', color: message.length >= MAX_CHARS ? '#dc2626' : '#777' }}>
+                            {message.length} / {MAX_CHARS}
+                        </span>
+                    </div>
                     <textarea
                         id="feedback-message"
                         className="feedback-textarea"
                         placeholder="Describe the issue or share your thoughts..."
                         value={message}
+                        maxLength={MAX_CHARS}
                         onChange={e => setMessage(e.target.value)}
                         disabled={status === 'loading'}
                         rows={6}

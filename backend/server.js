@@ -393,6 +393,10 @@ app.post("/api/feedback", async (req, res) => {
 		return res.status(400).json({ error: "Missing user_email or message." });
 	}
 
+	if (message.length > 1000) {
+		return res.status(400).json({ error: "Message exceeds maximum limit of 1000 characters." });
+	}
+
 	// ── Rate limiting ──
 	const now = Date.now();
 	const timestamps = (feedbackRateLimit.get(user_email) || []).filter(
