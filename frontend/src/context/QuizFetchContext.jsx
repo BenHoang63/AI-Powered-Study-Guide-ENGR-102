@@ -1,5 +1,4 @@
 import { createContext, useContext, useRef } from 'react';
-import { BACKEND_URL } from '../scripts/config';
 
 const QuizFetchContext = createContext();
 
@@ -29,7 +28,7 @@ export const QuizFetchProvider = ({ children }) => {
 
         let tp = 1;
         try {
-            const res = await fetch(`${BACKEND_URL}/api/engr102/${ch}/num_topics`);
+            const res = await fetch(`/api/engr102/${ch}/num_topics`);
             if (!res.ok) throw new Error();
             const data = await res.json();
             tp = Math.ceil(Math.random() * data.topicCount) || 1;
@@ -39,7 +38,7 @@ export const QuizFetchProvider = ({ children }) => {
         }
 
         try {
-            const res2 = await fetch(`${BACKEND_URL}/api/engr102/quiz/question`, {
+            const res2 = await fetch('/api/engr102/quiz/question', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ chapter: ch, topic: tp, type: questionType }),
