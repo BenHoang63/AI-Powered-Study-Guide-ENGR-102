@@ -5,8 +5,8 @@ An AI-powered, RAG-based study tool built for Texas A&M ENGR 102 students. Gener
 > **Access is restricted to `@tamu.edu` email addresses.**
 
 ### Accessing the App
-- **Live App (TAMU Google Sign-In):** [ai-powered-study-guide-engr-102.onrender.com](https://ai-powered-study-guide-engr-102.onrender.com)
-- **Recruiter / Guest Demo Mode:** [ai-powered-study-guide-engr-102.onrender.com/?demo=demol15ca2026](https://ai-powered-study-guide-engr-102.onrender.com/?demo=demol15ca2026)
+- **Live App (TAMU Google Sign-In):** [engr-study-helper.onrender.com](https://engr-study-helper.onrender.com/)
+- **Recruiter / Guest Demo Mode:** [engr-study-helper.onrender.com/?demo=demol15ca2026](https://engr-study-helper.onrender.com/?demo=demol15ca2026)
 
 ---
 
@@ -41,7 +41,7 @@ An AI-powered, RAG-based study tool built for Texas A&M ENGR 102 students. Gener
 | **Python Engine** | Pyodide (WebAssembly + Web Workers) |
 | **Backend** | Node.js, Express |
 | **Database** | PostgreSQL (NeonDB) with `pgvector` extension |
-| **AI / LLM** | OpenRouter API (Claude / Llama Models) |
+| **AI / LLM** | OpenRouter API (Deepseek v4 flash / GPT-4o mini) |
 | **Embeddings** | Custom embedding pipeline (`backend/llm/embed.js`) |
 | **Auth** | Better Auth (`@tamu.edu` restricted + Demo Token bypass) |
 | **Deployment** | Render |
@@ -107,15 +107,15 @@ DB_NAME=your_db_name
 DB_USER=your_db_user
 DB_PASSWORD=your_db_password
 OPENROUTER_API_KEY=your_openrouter_key
-OPENROUTER_QUESTION_MODEL=anthropic/claude-3.5-haiku
-OPENROUTER_CHECK_MODEL=anthropic/claude-3.5-haiku
+OPENROUTER_QUESTION_MODEL=your_preferred_llm
+OPENROUTER_CHECK_MODEL=your_preferred_llm
 ```
 
 Create `frontend/.env`:
 
 ```env
 VITE_BACKEND_URL=http://localhost:3000
-VITE_DEMO_TOKEN=demol15ca2026
+VITE_DEMO_TOKEN=your_demo_token
 ```
 
 ### Run
