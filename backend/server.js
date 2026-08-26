@@ -48,10 +48,14 @@ pool.connect((err, client, release) => {
 		release();
 	}
 });
+import path from "path";
+import { fileURLToPath } from "url";
 
-app.get("/", (request, response) => {
-	response.send("Server is ready");
-});
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Serve frontend static files
+app.use(express.static(path.join(__dirname, "../frontend/dist")));
 
 // ==================== topic mapping ====================
 const TOPIC_MAP = {
@@ -493,9 +497,10 @@ app.get("/api/stats/:course/:email", async (req, res) => {
         return res.status(500).json({ error: "Internal server error." });
     }
 });
-
-
-
+// Catch-all route for React Router (must be AFTER all API routes)
+app.get("*", (req, res) => {
+    res.sendFile(path.join(__dirname, "../frontend/dist/index.html"));
+});
 app.listen(3000, () => {
 	console.log("Server started at http://localhost:3000");
 });
