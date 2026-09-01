@@ -14,6 +14,8 @@ TODO:
         • [x] code_writing questions only
 
     • [x] turn this project into an RAG-based system!
+    • for code_writing, make sure the user doesn't spam submit
+    • change API to TAMU AI API
 
 IDEAS:
     • [x] create a way for users to choose their preferred question types

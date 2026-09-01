@@ -95,43 +95,59 @@ app.post("/api/engr102/quiz/question", async (req, res) => {
 	// get body and variables
 	const { chapter, topic, type } = req.body;
 
-	// ── RAG: embed the query and retrieve the most relevant topic row ──
+	// ── Topic retrieval: RAG for chapters 1-12, direct lookup for exam chapters (13+) ──
 	let topic_name = "";
 	let context = "";
 	let sample = "";
 	let other_instruction = "";
 	try {
-		// Build a human-readable query string from chapter/topic hint
-		const chapterDesc = TOPIC_MAP[String(chapter)] || `Chapter ${chapter}`;
-		const queryText = `Chapter ${chapter}, topic ${topic}: ${chapterDesc}`;
+		if (Number(chapter) >= 13) {
+			// Exam mode: direct lookup from engr102topics without embedding call
+			// For Exam 2 (ch 14), pull context from both Exam 1 (ch 13) and Exam 2 (ch 14)
+			const targetChapters = Number(chapter) === 14 ? [13, 14] : [13];
+			const result = await pool.query(
+				`SELECT chapter, topic_name, context, question, other_instruction
+				 FROM engr102topics
+				 WHERE chapter = ANY($1::int[])`,
+				[targetChapters]
+			);
+			if (result.rows.length === 0) {
+				return res.status(404).json({ error: "Exam topic context not found" });
+			}
+			topic_name = Number(chapter) === 14 ? "Exam 2 Review (Cumulative)" : "Exam 1 Review";
+			context = result.rows.map(r => r.context).filter(Boolean).join("\n\n");
+			sample = result.rows.map(r => r.question).filter(Boolean).join("\n\n--- Sample Question ---\n\n");
+			other_instruction = result.rows.map(r => r.other_instruction).filter(Boolean).join(" ");
+		} else {
+			// Standard RAG lookup
+			const chapterDesc = TOPIC_MAP[String(chapter)] || `Chapter ${chapter}`;
+			const queryText = `Chapter ${chapter}, topic ${topic}: ${chapterDesc}`;
 
-		// Embed the query with the same model used during indexing
-		const queryVector = await embedQuery(queryText);
-		const vectorString = JSON.stringify(queryVector);
+			const queryVector = await embedQuery(queryText);
+			const vectorString = JSON.stringify(queryVector);
 
-		// Cosine similarity search — nearest neighbour within the requested chapter
-		const result = await pool.query(
-			`SELECT topic_name, context, question, other_instruction,
-			        1 - (embedding <=> $1::vector) AS similarity
-			 FROM engr102topics
-			 WHERE chapter = $2
-			 ORDER BY embedding <=> $1::vector
-			 LIMIT 1`,
-			[vectorString, chapter]
-		);
+			const result = await pool.query(
+				`SELECT topic_name, context, question, other_instruction,
+				        1 - (embedding <=> $1::vector) AS similarity
+				 FROM engr102topics
+				 WHERE chapter = $2
+				 ORDER BY embedding <=> $1::vector
+				 LIMIT 1`,
+				[vectorString, chapter]
+			);
 
-		if (result.rows.length === 0) {
-			return res.status(404).json({ error: "Topic not found" });
+			if (result.rows.length === 0) {
+				return res.status(404).json({ error: "Topic not found" });
+			}
+			const question_topic = result.rows[0];
+			topic_name = question_topic.topic_name;
+			context = question_topic.context;
+			sample = question_topic.question;
+			other_instruction = question_topic.other_instruction;
 		}
-		const question_topic = result.rows[0];
-		// console.log(`[RAG] Retrieved: "${question_topic.topic_name}" (similarity: ${Number(question_topic.similarity).toFixed(4)})`);
-		topic_name = question_topic.topic_name;
-		context = question_topic.context;
-		sample = question_topic.question;
-		other_instruction = question_topic.other_instruction;
 	} catch (err) {
-		console.error("Error during RAG topic retrieval:", err);
-		return res.status(500).json({ error: "Internal server error during RAG retrieval" });
+		console.error("Error during topic retrieval:", err);
+		return res.status(500).json({ error: "Internal server error during topic retrieval" });
 	}
 
 	// create question prompt
@@ -149,28 +165,40 @@ app.post("/api/engr102/quiz/question", async (req, res) => {
 
 
 	// future topic restriction constraint
+	const effectiveChapter = Number(chapter) === 13 ? 7 : Number(chapter) === 14 ? 12 : Number(chapter);
+
 	const futureTopics = Object.keys(TOPIC_MAP)
-		.filter(chapNum => Number(chapNum) > Number(chapter))
+		.filter(chapNum => Number(chapNum) > effectiveChapter)
 		.map(chapNum => TOPIC_MAP[chapNum]);
 
 	let restrictionNotice = "";
 	if (futureTopics.length > 0) {
 		restrictionNotice += `STRICT KNOWLEDGE SCOPE CONSTRAINT:
-The student has ONLY learned topics up to Chapter ${chapter} (${topic_name}). 
+The student has ONLY learned topics up to Chapter ${effectiveChapter} (${topic_name}). 
 DO NOT use, require, or reference concepts, syntax, or data structures from future topics:
 ${futureTopics.map(t => `- ${t}`).join("\n")}
-The question and solution code MUST ONLY rely on concepts introduced up to Chapter ${chapter}.`;
+The question and solution code MUST ONLY rely on concepts introduced up to Chapter ${effectiveChapter}.`;
 	}
 
-	if (Number(chapter) < 9) {
+	if (effectiveChapter < 9) {
 		restrictionNotice += `\n\nCRITICAL FUNCTION CREATION RESTRICTION:
 The student HAS NOT learned user-defined functions yet (which is taught in Chapter 9). 
 DO NOT ask the student to write, create, or define a function (DO NOT use 'def', function parameters, or 'return'). 
 Instead, ask the student to write a standalone Python script or code snippet using standard statements/variables/inputs directly.`;
 	}
 
+	let examNotice = "";
+	if (Number(chapter) >= 13) {
+		examNotice = `\n\nEXAM QUESTION GENERATION GUIDELINES:
+1. CREATIVE & REAL-WORLD SCENARIO: Create an engaging, logical word problem set in a practical real-world or engineering context (e.g., sensor data processing, budgeting, scientific calculations, inventory tracking, grade calculation).
+2. DO NOT REUSE SAMPLE QUESTIONS: The provided sample questions are ONLY reference examples for difficulty level and topics. DO NOT copy, paraphrase, or reuse any part of the wording, scenarios, variable names, or numbers from the sample questions. You may copy rules (e.g., print a float to 2 decimals, do not use for loops, etc.)
+3. LOGICAL & CLEAR REQUIREMENTS: Clearly state all input requirements, formula details, and expected outputs so the student understands exactly what code to write.
+4. QUESTION LENGTH: Make sure the question does not take too long to answer (around 1-2 minutes). Do not ask the student to write a very long code and do not guide the student with code hints.
+5. SPECIAL CASES: Check for special cases, and if there are any edge cases, make sure to include them in the question.`;
+	}
+
 	const systemPrompt = `You are a quiz question generator for a university-level introductory Python programming course. 
-Generate exactly ONE question at a time. Context and a sample question (which should not be used) is provided.
+Generate exactly ONE question at a time. Context and sample reference questions are provided.
 IMPORTANT: Respond with ONLY valid raw JSON object. Do not wrap the JSON response in top-level code fences.
 
 MANDATORY FORMATTING RULES — you MUST follow these exactly:
@@ -188,11 +216,14 @@ MANDATORY FORMATTING RULES — you MUST follow these exactly:
 ${questionPrompt}
 
 ${restrictionNotice}
+${examNotice}
 `;
 
 	const userPrompt = `Generate a ${type} question about topic ${topic_name}: ${context}.
 
-Sample question for reference (do not reuse): ${sample}
+Sample reference questions (DO NOT REUSE ANY PARTS OF THESE):
+${sample}
+
 Other instructions: ${other_instruction}
 `;
 
@@ -203,7 +234,7 @@ Other instructions: ${other_instruction}
 				headers: {
 					"Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
 					"Content-Type": "application/json",
-					"HTTP-Referer": "https://engr102-study-guide.onrender.com",
+					"HTTP-Referer": "https://engr-study-helper.onrender.com",
 					"X-Title": "ENGR 102 Study Guide"
 				},
 				body: JSON.stringify({
@@ -305,7 +336,7 @@ ${user_answer}
 				headers: {
 					"Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
 					"Content-Type": "application/json",
-					"HTTP-Referer": "https://engr102-study-guide.onrender.com",
+					"HTTP-Referer": "https://engr-study-helper.onrender.com",
 					"X-Title": "ENGR 102 Study Guide"
 				},
 				body: JSON.stringify({

@@ -255,7 +255,7 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
 
             <header className="eq-header">
                 <h1>{examName} Practice</h1>
-                <p className="eq-subtitle">Code-writing questions drawn from {chapterRange}</p>
+                {/* <p className="eq-subtitle">Code-writing questions drawn from {chapterRange}</p> */}
             </header>
 
             {/* PDF Review Sheet */}
@@ -278,7 +278,8 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
             {!quizStarted && (
                 <div className="eq-start-screen">
                     <p className="eq-start-desc">
-                        Practice writing Python code for {examName}. Questions are randomly drawn from the covered chapters and evaluated by AI.<br></br>
+                        Practice writing Python code for {examName}. Questions are randomly drawn from the covered chapters and evaluated by AI.
+                            These questions are not represntative of the exam questions, but are meant to review your topics.<br></br>
                         Note: there will be multiple choice, short answer, and multiple-answer questions on the exam, but use the topic quizzer to review your topics.
                     </p>
                     <button className="quiz-start-btn" onClick={startQuiz} disabled={loading}>
@@ -295,12 +296,14 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
                         <button className="toggle-all-btn" onClick={resetQuiz}>
                             ← Back to Start
                         </button>
+
                         {currentQuestion && (
                             <span className="eq-topic-label">
+                                <p></p>
                                 <h2>
-                                    <span className="definition">
+                                    {/* <span className="definition">
                                         Topic {currentQuestion[0]}.{currentQuestion[1]}
-                                    </span>
+                                    </span> */}
                                     &nbsp;{currentQuestion[2]}
                                 </h2>
                             </span>
