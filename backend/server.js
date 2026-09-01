@@ -48,6 +48,53 @@ pool.connect((err, client, release) => {
 		release();
 	}
 });
+
+// ── In-Memory Metadata Caches ──
+let topicsCache = null;         // Map: chapter (number) -> Array of topic objects
+let instructionsCache = null;   // Map: type (string) -> string (instructions)
+
+async function getCachedTopics() {
+	if (topicsCache) return topicsCache;
+	try {
+		const result = await pool.query(
+			"SELECT chapter, topic, topic_name, context, question, other_instruction FROM engr102topics ORDER BY chapter, topic"
+		);
+		const map = new Map();
+		for (const row of result.rows) {
+			const ch = Number(row.chapter);
+			if (!map.has(ch)) map.set(ch, []);
+			map.get(ch).push(row);
+		}
+		topicsCache = map;
+		console.log(`[Cache] Loaded ${result.rows.length} topics across ${map.size} chapters into memory.`);
+		return topicsCache;
+	} catch (err) {
+		console.error("[Cache] Failed to load topics cache:", err);
+		return null;
+	}
+}
+
+async function getCachedInstructions(type) {
+	if (instructionsCache && instructionsCache.has(type)) {
+		return instructionsCache.get(type);
+	}
+	try {
+		const result = await pool.query("SELECT type, instructions FROM llm_instructions");
+		instructionsCache = new Map();
+		for (const row of result.rows) {
+			instructionsCache.set(row.type, row.instructions);
+		}
+		console.log(`[Cache] Loaded ${instructionsCache.size} instruction types into memory.`);
+		return instructionsCache.get(type) || null;
+	} catch (err) {
+		console.error("[Cache] Failed to load instructions cache:", err);
+		return null;
+	}
+}
+
+// Warm up caches on startup
+getCachedTopics();
+getCachedInstructions("code_writing");
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -94,52 +141,82 @@ app.post("/api/engr102/quiz/question", async (req, res) => {
 
 	// get body and variables
 	const { chapter, topic, type } = req.body;
+	const chNum = Number(chapter);
 
-	// ── Topic retrieval: RAG for chapters 1-12, direct lookup for exam chapters (13+) ──
+	// ── Fast in-memory topic retrieval (0ms DB latency) ──
 	let topic_name = "";
 	let context = "";
 	let sample = "";
 	let other_instruction = "";
+	let topic_number = Number(topic) || 1;
+
 	try {
-		if (Number(chapter) >= 13) {
-			// Exam mode: direct lookup from engr102topics without embedding call
-			// For Exam 2 (ch 14), pull context from both Exam 1 (ch 13) and Exam 2 (ch 14)
-			const targetChapters = Number(chapter) === 14 ? [13, 14] : [13];
-			const result = await pool.query(
-				`SELECT chapter, topic_name, context, question, other_instruction
-				 FROM engr102topics
-				 WHERE chapter = ANY($1::int[])`,
-				[targetChapters]
-			);
-			if (result.rows.length === 0) {
+		const topicsMap = await getCachedTopics();
+
+		if (chNum >= 13) {
+			// Exam mode: direct lookup without embedding call
+			const targetChapters = chNum === 14 ? [13, 14] : [13];
+			let rows = [];
+			if (topicsMap) {
+				for (const targetCh of targetChapters) {
+					if (topicsMap.has(targetCh)) {
+						rows.push(...topicsMap.get(targetCh));
+					}
+				}
+			}
+			if (rows.length === 0) {
+				const result = await pool.query(
+					`SELECT chapter, topic_name, context, question, other_instruction
+					 FROM engr102topics
+					 WHERE chapter = ANY($1::int[])`,
+					[targetChapters]
+				);
+				rows = result.rows;
+			}
+			if (rows.length === 0) {
 				return res.status(404).json({ error: "Exam topic context not found" });
 			}
-			topic_name = Number(chapter) === 14 ? "Exam 2 Review (Cumulative)" : "Exam 1 Review";
-			context = result.rows.map(r => r.context).filter(Boolean).join("\n\n");
-			sample = result.rows.map(r => r.question).filter(Boolean).join("\n\n--- Sample Question ---\n\n");
-			other_instruction = result.rows.map(r => r.other_instruction).filter(Boolean).join(" ");
+			topic_name = chNum === 14 ? "Exam 2 Review (Cumulative)" : "Exam 1 Review";
+			context = rows.map(r => r.context).filter(Boolean).join("\n\n");
+
+			// Extract individual sample questions and pick 1 random reference to keep prompts fast and token-efficient
+			const rawSampleQuestions = [];
+			for (const r of rows) {
+				if (!r.question) continue;
+				const parts = r.question.split(/\n(?=\d+\.\s)/).map(s => s.trim()).filter(Boolean);
+				rawSampleQuestions.push(...parts);
+			}
+			sample = rawSampleQuestions.length > 0
+				? rawSampleQuestions[Math.floor(Math.random() * rawSampleQuestions.length)]
+				: "";
+
+			other_instruction = rows.map(r => r.other_instruction).filter(Boolean).join(" ");
 		} else {
-			// Standard RAG lookup
+			// ── Vector RAG Retrieval via pgvector ──
 			const chapterDesc = TOPIC_MAP[String(chapter)] || `Chapter ${chapter}`;
-			const queryText = `Chapter ${chapter}, topic ${topic}: ${chapterDesc}`;
+			const queryText = topic
+				? `Chapter ${chapter}, topic ${topic}: ${chapterDesc}`
+				: `Chapter ${chapter}: ${chapterDesc}`;
 
 			const queryVector = await embedQuery(queryText);
 			const vectorString = JSON.stringify(queryVector);
 
 			const result = await pool.query(
-				`SELECT topic_name, context, question, other_instruction,
+				`SELECT topic, topic_name, context, question, other_instruction,
 				        1 - (embedding <=> $1::vector) AS similarity
 				 FROM engr102topics
 				 WHERE chapter = $2
 				 ORDER BY embedding <=> $1::vector
 				 LIMIT 1`,
-				[vectorString, chapter]
+				[vectorString, chNum]
 			);
 
 			if (result.rows.length === 0) {
 				return res.status(404).json({ error: "Topic not found" });
 			}
 			const question_topic = result.rows[0];
+
+			topic_number = question_topic.topic || topic_number;
 			topic_name = question_topic.topic_name;
 			context = question_topic.context;
 			sample = question_topic.question;
@@ -150,17 +227,19 @@ app.post("/api/engr102/quiz/question", async (req, res) => {
 		return res.status(500).json({ error: "Internal server error during topic retrieval" });
 	}
 
-	// create question prompt
-	let questionPrompt = "";
-	try {
-		const result2 = await pool.query("SELECT instructions FROM llm_instructions WHERE type=$1", [type]);
-		if (result2.rows.length === 0) {
-			return res.status(404).json({ error: "Instructions not found" });
+	// create question prompt (cached in memory)
+	let questionPrompt = await getCachedInstructions(type);
+	if (!questionPrompt) {
+		try {
+			const result2 = await pool.query("SELECT instructions FROM llm_instructions WHERE type=$1", [type]);
+			if (result2.rows.length === 0) {
+				return res.status(404).json({ error: "Instructions not found" });
+			}
+			questionPrompt = result2.rows[0].instructions;
+		} catch (err) {
+			console.error("Error getting instructions:", err);
+			return res.status(500).json({ error: "Internal server error getting instructions" });
 		}
-		questionPrompt = result2.rows[0].instructions;
-	} catch (err) {
-		console.error("Error getting instructions:", err);
-		return res.status(500).json({ error: "Internal server error getting instructions" });
 	}
 
 
@@ -243,7 +322,10 @@ Other instructions: ${other_instruction}
 						{ role: "system", content: systemPrompt },
 						{ role: "user",   content: userPrompt }
 					],
-					temperature: 0.8
+					temperature: 0.7,
+					response_format: { type: "json_object" },
+					reasoning: { effort: "none" },
+					max_tokens: 1000
 				})
 			});
 
@@ -279,6 +361,7 @@ Other instructions: ${other_instruction}
 			const question = JSON.parse(jsonString);
 
 			return res.json({
+				"topic_number": topic_number,
 				"topic_name": topic_name,
 				"llm_response": question,
 			});
@@ -289,8 +372,14 @@ Other instructions: ${other_instruction}
 		}
 	}
 
-	return res.status(500).json({ error: "Failed to generate valid question from AI after 3 attempts" });
+	return res.status(500).json({ error: "Failed to generate valid question from AI after 3 attempts. Please try again." });
 });
+
+// Rate limiting and concurrency control for check_answer
+const activeCheckAnswerIps = new Set();
+const checkAnswerRateLimit = new Map();
+const CHECK_ANSWER_WINDOW_MS = 60 * 1000; // 1 minute
+const CHECK_ANSWER_MAX_PER_WINDOW = 15; // Generous for humans (15/min), prevents spam
 
 // ============================ check code writing answer ============================ //
 app.post("/api/engr102/quiz/check_answer", async (req, res) => {
@@ -310,6 +399,27 @@ app.post("/api/engr102/quiz/check_answer", async (req, res) => {
 	if (!question || !user_answer) {
 		return res.status(400).json({ error: "Missing question or user_answer" });
 	}
+
+	const clientIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip || req.socket.remoteAddress;
+
+	// In-flight concurrency lock per client IP
+	if (activeCheckAnswerIps.has(clientIp)) {
+		return res.status(429).json({ error: "An evaluation is already in progress. Please wait." });
+	}
+
+	// Sliding-window rate limit
+	const now = Date.now();
+	const timestamps = (checkAnswerRateLimit.get(clientIp) || []).filter(
+		t => now - t < CHECK_ANSWER_WINDOW_MS
+	);
+	if (timestamps.length >= CHECK_ANSWER_MAX_PER_WINDOW) {
+		return res.status(429).json({ error: "Too many evaluation requests. Please slow down." });
+	}
+	timestamps.push(now);
+	checkAnswerRateLimit.set(clientIp, timestamps);
+
+	activeCheckAnswerIps.add(clientIp);
+	try {
 
 	const systemPrompt = `You are an automated code evaluator for an introductory Python programming course. 
 Analyze the student's Python answer against the question requirements.
@@ -387,22 +497,28 @@ ${user_answer}
 	}
 
 	return res.status(500).json({ error: "Failed to evaluate code answer after 3 attempts" });
+	} finally {
+		activeCheckAnswerIps.delete(clientIp);
+	}
 });
 
 
 // ============================ get number of topics per chapter ============================ //
 app.get("/api/engr102/:chapter/num_topics", async (req, res) => {
-	const chapter = req.params.chapter;
+	const chNum = Number(req.params.chapter);
+	const topicsMap = await getCachedTopics();
+	if (topicsMap && topicsMap.has(chNum)) {
+		return res.json({ topicCount: topicsMap.get(chNum).length });
+	}
 	try {
-		const result = await pool.query("SELECT COUNT(*) FROM engr102topics WHERE chapter = $1", [chapter]);
-		// console.log(result);
-		const topicCount = result.rows[0].count;
+		const result = await pool.query("SELECT COUNT(*) FROM engr102topics WHERE chapter = $1", [chNum]);
+		const topicCount = parseInt(result.rows[0].count, 10);
 		return res.json({ topicCount });
 	} catch (err) {
 		console.error("Error getting number of topics per chapter:", err);
 		return res.status(500).json({ error: "Internal server error getting number of topics per chapter" });
 	}
-})
+});
 
 
 // ============================ feedback ============================ //

@@ -14,6 +14,8 @@ export const QuizFetchProvider = ({ children }) => {
     // Map of channel → { promise, resolved, data }
     const prefetchMap = useRef({});
 
+    const topicCountsCache = useRef({});
+
     /**
      * Pure fetch helper.  Returns question array or null.
      *
@@ -27,14 +29,21 @@ export const QuizFetchProvider = ({ children }) => {
         const questionType = types[Math.floor(Math.random() * types.length)];
 
         let tp = 1;
-        try {
-            const res = await fetch(`/api/engr102/${ch}/num_topics`);
-            if (!res.ok) throw new Error();
-            const data = await res.json();
-            tp = Math.ceil(Math.random() * data.topicCount) || 1;
-        } catch (err) {
-            console.error('[QuizFetchContext] Could not get topic count:', err);
-            return null;
+        // Check in-memory cache for topic count to avoid duplicate round-trips
+        if (topicCountsCache.current[ch]) {
+            tp = Math.ceil(Math.random() * topicCountsCache.current[ch]) || 1;
+        } else {
+            try {
+                const res = await fetch(`/api/engr102/${ch}/num_topics`);
+                if (res.ok) {
+                    const data = await res.json();
+                    topicCountsCache.current[ch] = data.topicCount || 5;
+                    tp = Math.ceil(Math.random() * topicCountsCache.current[ch]) || 1;
+                }
+            } catch (err) {
+                console.error('[QuizFetchContext] Could not get topic count, using fallback:', err);
+                tp = 1;
+            }
         }
 
         try {
@@ -45,10 +54,11 @@ export const QuizFetchProvider = ({ children }) => {
             });
             if (!res2.ok) throw new Error(res2.statusText);
             const data2 = await res2.json();
+            const actualTopic = data2.topic_number || tp;
 
             return extraSlots === 8
-                ? [ch, tp, data2.topic_name, data2.llm_response, null, false, false, false]
-                : [ch, tp, data2.topic_name, data2.llm_response, null];
+                ? [ch, actualTopic, data2.topic_name, data2.llm_response, null, false, false, false]
+                : [ch, actualTopic, data2.topic_name, data2.llm_response, null];
         } catch (err) {
             console.error('[QuizFetchContext] Could not fetch question:', err);
             return null;

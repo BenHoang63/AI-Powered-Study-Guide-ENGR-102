@@ -130,6 +130,40 @@ const ENGR102TopicQuizzer = () => {
         sessionStorage.setItem('quizzer_stdinValue', stdinValue);
     }, [stdinValue]);
     const [pyodideReady, setPyodideReady] = useState(false);
+    const [checkingCode, setCheckingCode] = useState(false);
+    const [cwCooldown, setCwCooldown] = useState(0);
+    const cwCooldownTimerRef = useRef(null);
+
+    const clearCwCooldown = () => {
+        if (cwCooldownTimerRef.current) {
+            clearInterval(cwCooldownTimerRef.current);
+            cwCooldownTimerRef.current = null;
+        }
+        setCwCooldown(0);
+    };
+
+    const startCwCooldown = (duration = 3) => {
+        clearCwCooldown();
+        setCwCooldown(duration);
+        cwCooldownTimerRef.current = setInterval(() => {
+            setCwCooldown(prev => {
+                if (prev <= 1) {
+                    clearInterval(cwCooldownTimerRef.current);
+                    cwCooldownTimerRef.current = null;
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+    };
+
+    useEffect(() => {
+        return () => {
+            if (cwCooldownTimerRef.current) {
+                clearInterval(cwCooldownTimerRef.current);
+            }
+        };
+    }, []);
 
     const updateLineCount = (val) => {
         const lines = (val || "").split('\n').length;
@@ -477,6 +511,8 @@ const ENGR102TopicQuizzer = () => {
             cw.value = savedVal;
             updateLineCount(savedVal);
         }
+        clearCwCooldown();
+        setCheckingCode(false);
         setExplanationText("");
         setCodeOutput(null);
         setCodeRunning(false);
@@ -649,6 +685,9 @@ const ENGR102TopicQuizzer = () => {
             return;
         }
 
+        if (checkingCode || cwCooldown > 0) return;
+
+        setCheckingCode(true);
         setExplanationText("Evaluating your code...");
         document.getElementById('explanation').hidden = false;
 
@@ -663,7 +702,16 @@ const ENGR102TopicQuizzer = () => {
                     user_answer: user_answer
                 }),
             });
-            if (!response.ok) throw new Error("Server error evaluating answer");
+            if (!response.ok) {
+                if (response.status === 429) {
+                    const data = await response.json().catch(() => ({}));
+                    setExplanationText(data.error || "Too many evaluation requests. Please wait a moment.");
+                    document.getElementById('explanation').hidden = false;
+                    startCwCooldown(5);
+                    return;
+                }
+                throw new Error("Server error evaluating answer");
+            }
             const data = await response.json();
 
             const is_correct = data.is_correct;
@@ -675,15 +723,20 @@ const ENGR102TopicQuizzer = () => {
                 document.getElementById('submit').hidden = true;
                 document.getElementById('next-question').hidden = false;
                 handleAnswerAttempt(true);
+                clearCwCooldown();
             } else {
                 setExplanationText(`Incorrect. ${explanation || "Try again."}`);
                 document.getElementById('explanation').hidden = false;
                 handleAnswerAttempt(false);
+                startCwCooldown(3);
             }
         } catch (err) {
             console.error("[Error] ENGR102TopicQuizzer: could not retrieve answer for code writing", err);
             setExplanationText("Error evaluating answer. Please try again.");
             document.getElementById('explanation').hidden = false;
+            startCwCooldown(3);
+        } finally {
+            setCheckingCode(false);
         }
     };
 
@@ -971,6 +1024,9 @@ const ENGR102TopicQuizzer = () => {
                                         const val = e.target.value;
                                         updateLineCount(val);
                                         setCurrentQuestion(prev => [prev[0], prev[1], prev[2], prev[3], val, prev[5], prev[6], prev[7]]);
+                                        if (cwCooldown > 0) {
+                                            clearCwCooldown();
+                                        }
                                     }}
                                     onScroll={handleCwScroll}
                                 ></textarea>
@@ -1059,7 +1115,12 @@ const ENGR102TopicQuizzer = () => {
                     )}
 
                     <button id='submit' className='quiz-start-btn'
-                        disabled={loading || (currentQuestion[3]?.type === 'multiple_choice' && currentQuestion[4] == null)} 
+                        disabled={
+                            loading ||
+                            checkingCode ||
+                            (currentQuestion[3]?.type === 'code_writing' && cwCooldown > 0) ||
+                            (currentQuestion[3]?.type === 'multiple_choice' && currentQuestion[4] == null)
+                        } 
                         hidden={false}
                         onClick={() => {
                             const qType = currentQuestion[3]?.type;
@@ -1073,13 +1134,21 @@ const ENGR102TopicQuizzer = () => {
                                 ma_check();
                             }
                         }}>
-                            Submit</button>
+                            {checkingCode
+                                ? "Evaluating..."
+                                : (currentQuestion[3]?.type === 'code_writing' && cwCooldown > 0)
+                                    ? `Submit (${cwCooldown}s)`
+                                    : "Submit"
+                            }
+                    </button>
 
 
                     <button id='next-question' className='quiz-start-btn' 
                         hidden={true}
                         disabled={loading}
                         onClick={ async () => {
+                            clearCwCooldown();
+                            setCheckingCode(false);
                             // Clear question immediately so it disappears while the next one loads
                             setCurrentQuestion(prev => [prev[0], prev[1], prev[2], {}, null, false, false, false]);
                             const nextBtn = document.getElementById('next-question');

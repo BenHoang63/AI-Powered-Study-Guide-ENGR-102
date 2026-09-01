@@ -14,7 +14,7 @@ TODO:
         • [x] code_writing questions only
 
     • [x] turn this project into an RAG-based system!
-    • for code_writing, make sure the user doesn't spam submit
+    • [x] for code_writing, make sure the user doesn't spam submit
     • change API to TAMU AI API
 
 IDEAS:

@@ -22,9 +22,10 @@ An AI-powered, RAG-based study tool built for Texas A&M ENGR 102 students. Gener
 - **In-Browser Python Execution Engine (Pyodide)** — Run user-written Python code directly inside browser Web Workers with interactive `stdin` / `input()` support, 5-second timeout protection against infinite loops, and formatted stdout/stderr output.
 - **User Progress Dashboard** — Track topic stats, overall accuracy, attempt counts, and earn "Strong Topic" badges (awarded for $\ge 80\%$ accuracy across $\ge 10$ attempts).
 - **Background Prefetching & State Persistence** — Questions pre-fetch seamlessly in the background via global React Context (`QuizFetchContext`), preserving typed code and state when navigating away.
-- **Exam 1 & Exam 2 Practice** — Scoped code-writing prep for midterm and final exams.
+- **Anti-Spam & Rate-Limiting Controls** — Frontend in-flight evaluation locks, a 3-second failure cooldown with instant edit bypass, and backend IP-based sliding-window rate limiting.
+- **Exam 1 & Exam 2 Practice** — Scoped code-writing prep for midterm and final exams with embedded reference formula sheets.
 - **Module Notes** — Reference guides for all 12 course modules with links directly to topic review notes.
-- **Strict Knowledge Scoping** — Questions never reference concepts from future chapters.
+- **Strict Knowledge Scoping** — Questions dynamically scope to the student's current chapter, preventing syntax or concepts from future topics (e.g., forbidding `def` before Chapter 9).
 
 ### General
 - **Google OAuth & TAMU Restriction** — Sign in with your TAMU Google account.
@@ -41,8 +42,8 @@ An AI-powered, RAG-based study tool built for Texas A&M ENGR 102 students. Gener
 | **Python Engine** | Pyodide (WebAssembly + Web Workers) |
 | **Backend** | Node.js, Express |
 | **Database** | PostgreSQL (NeonDB) with `pgvector` extension |
-| **AI / LLM** | OpenRouter API (Claude / Llama Models) |
-| **Embeddings** | Custom embedding pipeline (`backend/llm/embed.js`) |
+| **AI / LLM** | OpenRouter API (DeepSeek / Gemini / GPT-4o-mini) |
+| **Embeddings** | Custom embedding pipeline (`backend/llm/embed.js`, `nvidia/nemotron-3-embed-1b`) |
 | **Auth** | Better Auth (`@tamu.edu` restricted + Demo Token bypass) |
 | **Deployment** | Render |
 
@@ -83,10 +84,40 @@ An AI-powered, RAG-based study tool built for Texas A&M ENGR 102 students. Gener
 |---|---|---|
 | `POST` | `/api/engr102/quiz/question` | Generate a quiz question via RAG + LLM |
 | `POST` | `/api/engr102/quiz/check_answer` | AI-grade code writing or short answer response |
-| `GET` | `/api/engr102/:chapter/num_topics` | Get topic count for a chapter |
+| `GET` | `/api/engr102/:chapter/num_topics` | Get topic count for a chapter (cached in memory) |
 | `POST` | `/api/stats/record` | Record question attempt and accuracy to `user_topic_progress` |
 | `GET` | `/api/stats/:course/:email` | Fetch progress dashboard analytics joined with `<course>topics` |
 | `POST` | `/api/feedback` | Submit user feedback (rate-limited: 3 per 10 min) |
+
+---
+
+## How the RAG Pipeline Works
+
+1. **Embedding & Storage**: Course curriculum topics and prerequisite boundaries are pre-embedded and indexed in PostgreSQL using `pgvector`.
+2. **Semantic Retrieval**: When a student requests a question, the query string is converted to vector space via the embedding model, and a cosine distance query (`1 - (embedding <=> query_vector)`) retrieves the exact topic context from `engr102topics`.
+3. **Prompt Augmentation**: Retrieved context, reference sample questions, and dynamic chapter boundary constraints are injected into the LLM prompt.
+4. **Constrained Generation**: The LLM outputs a strictly formatted JSON question matching the question type schema without referencing future course concepts.
+
+---
+
+## Performance & Latency Benchmarks
+
+To optimize response times and lower API costs, several system-level optimizations were implemented:
+1. **Reasoning Token Suppression**: Configured `reasoning: { effort: "none" }` and `response_format: { type: "json_object" }` to eliminate ~2,500 hidden thinking tokens per request.
+2. **In-Memory Caching**: Pre-warmed static curriculum topics and LLM instructions into server memory on startup, eliminating 500–1,500 ms remote database network hops.
+3. **Reference Question Pruning**: Replaced monolithic 5,000-character sample question dumps with dynamic single-reference sampling for exam mode.
+4. **Client-Side Topic Count Caching**: Cached chapter topic counts in React Context to eliminate sequential preflight HTTP round-trips.
+
+### Optimization Results
+
+| Metric / Mode | Before Optimization | After Optimization | Improvement |
+| :--- | :--- | :--- | :--- |
+| `GET /num_topics` | ~400 – 600 ms | **< 30 ms** | **~15x faster** |
+| `POST /quiz/question` (Topic Quizzer) | 11,330 ms | **~820 ms** | **~13.8x faster** |
+| `POST /quiz/question` (Exam 1) | 16,325 ms | **~1,200 ms** | **~13.6x faster** |
+| `POST /quiz/question` (Exam 2) | 10,616 ms | **~380 – 900 ms** | **~15–25x faster** |
+| **Completion Tokens / Question** | 2,400 – 3,500 tokens | **80 – 175 tokens** | **~93% reduction** |
+| **Cost per Question** | ~$0.00053 | **~$0.00004** | **~90% cheaper** |
 
 ---
 
@@ -107,8 +138,8 @@ DB_NAME=your_db_name
 DB_USER=your_db_user
 DB_PASSWORD=your_db_password
 OPENROUTER_API_KEY=your_openrouter_key
-OPENROUTER_QUESTION_MODEL=anthropic/claude-3.5-haiku
-OPENROUTER_CHECK_MODEL=anthropic/claude-3.5-haiku
+OPENROUTER_QUESTION_MODEL=deepseek/deepseek-v4-flash-0731
+OPENROUTER_CHECK_MODEL=openai/gpt-4o-mini
 ```
 
 Create `frontend/.env`:
@@ -129,16 +160,6 @@ node server.js
 cd frontend
 npm run dev
 ```
-
----
-
-## How the RAG Pipeline Works
-
-1. Course topics are pre-embedded and stored in PostgreSQL using `pgvector`.
-2. When a question is requested, the chapter/topic context is embedded using the same vector model.
-3. Cosine similarity search (`1 - (embedding <=> query_vector)`) retrieves the exact topic context from `engr102topics`.
-4. The topic's `context`, `question` sample, and constraints are injected into the LLM prompt.
-5. The LLM generates a unique, structured question scoped strictly to that topic and prior chapters.
 
 ---
 

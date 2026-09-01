@@ -54,18 +54,53 @@ const renderFormattedText = (text) => {
 
 const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
 
-    const [currentQuestion, setCurrentQuestion] = useState(() => {
-        try { return JSON.parse(sessionStorage.getItem(`${storageKey}_question`)) || null; }
-        catch { return null; }
-    });
     const [quizStarted, setQuizStarted] = useState(() => {
         return sessionStorage.getItem(`${storageKey}_started`) === 'true';
+    });
+    const [currentQuestion, setCurrentQuestion] = useState(() => {
+        const isStarted = sessionStorage.getItem(`${storageKey}_started`) === 'true';
+        if (!isStarted) return null;
+        try { return JSON.parse(sessionStorage.getItem(`${storageKey}_question`)) || null; }
+        catch { return null; }
     });
     const [loading, setLoading]                 = useState(false);
     const [prefetchLoading, setPrefetchLoading] = useState(false);
     const [explanationText, setExplanationText] = useState('');
     const [pdfOpen, setPdfOpen]                 = useState(false);
     const [checkingCode, setCheckingCode]       = useState(false);
+    const [cwCooldown, setCwCooldown]           = useState(0);
+    const cwCooldownTimerRef                    = useRef(null);
+
+    const clearCwCooldown = () => {
+        if (cwCooldownTimerRef.current) {
+            clearInterval(cwCooldownTimerRef.current);
+            cwCooldownTimerRef.current = null;
+        }
+        setCwCooldown(0);
+    };
+
+    const startCwCooldown = (duration = 3) => {
+        clearCwCooldown();
+        setCwCooldown(duration);
+        cwCooldownTimerRef.current = setInterval(() => {
+            setCwCooldown(prev => {
+                if (prev <= 1) {
+                    clearInterval(cwCooldownTimerRef.current);
+                    cwCooldownTimerRef.current = null;
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+    };
+
+    useEffect(() => {
+        return () => {
+            if (cwCooldownTimerRef.current) {
+                clearInterval(cwCooldownTimerRef.current);
+            }
+        };
+    }, []);
 
     const lineNumbersRef        = useRef(null);
     const textareaRef           = useRef(null);
@@ -92,7 +127,7 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
 
     useEffect(() => {
         if (quizStarted && (!currentQuestion || !currentQuestion[3]?.question)) {
-            getQuestion().then(() => cw_setup());
+            getQuestion().then((q) => { if (q) cw_setup(q); });
         } else if (quizStarted && currentQuestion) {
             setTimeout(() => cw_setup(), 50);
         }
@@ -145,6 +180,8 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
             cw.value = savedCode;
             updateLineCount(savedCode);
         }
+        clearCwCooldown();
+        setCheckingCode(false);
         setExplanationText('');
         const exp = document.getElementById('eq-explanation');
         if (exp) exp.hidden = true;
@@ -198,6 +235,8 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
             document.getElementById('eq-explanation').hidden = false;
             return;
         }
+        if (checkingCode || cwCooldown > 0) return;
+
         setExplanationText('Evaluating your code...');
         document.getElementById('eq-explanation').hidden = false;
         setCheckingCode(true);
@@ -208,7 +247,16 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ question: currentQuestion[3].question, user_answer }),
             });
-            if (!res.ok) throw new Error();
+            if (!res.ok) {
+                if (res.status === 429) {
+                    const data = await res.json().catch(() => ({}));
+                    setExplanationText(data.error || 'Too many evaluation requests. Please wait a moment.');
+                    document.getElementById('eq-explanation').hidden = false;
+                    startCwCooldown(5);
+                    return;
+                }
+                throw new Error();
+            }
             const data = await res.json();
             if (data.is_correct) {
                 setExplanationText(`Correct! ${data.explanation || ''}`);
@@ -216,21 +264,31 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
                 document.getElementById('eq-submit').hidden = true;
                 const nxt = document.getElementById('eq-next');
                 if (nxt) nxt.hidden = false;
+                clearCwCooldown();
             } else {
                 setExplanationText(`Incorrect. ${data.explanation || 'Try again.'}`);
                 document.getElementById('eq-explanation').hidden = false;
+                startCwCooldown(3);
             }
         } catch (err) {
             console.error('[ExamQuizzer] check_answer error:', err);
             setExplanationText('Error evaluating answer. Please try again.');
             document.getElementById('eq-explanation').hidden = false;
+            startCwCooldown(3);
+        } finally {
+            setCheckingCode(false);
         }
     };
 
     const startQuiz = async () => {
+        setLoading(true);
+        setCurrentQuestion(null);
         setQuizStarted(true);
-        await getQuestion();
-        cw_setup();
+        const qData = await getQuestion();
+        setLoading(false);
+        if (qData) {
+            cw_setup(qData);
+        }
         setTimeout(() => {
             const cw = document.getElementById('cw_answer');
             if (cw) cw.value = '';
@@ -238,6 +296,8 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
     };
 
     const resetQuiz = () => {
+        clearCwCooldown();
+        setCheckingCode(false);
         setQuizStarted(false);
         setCurrentQuestion(null);
         setExplanationText('');
@@ -341,6 +401,9 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
                                         const val = e.target.value;
                                         updateLineCount(val);
                                         setCurrentQuestion(prev => [prev[0], prev[1], prev[2], prev[3], val]);
+                                        if (cwCooldown > 0) {
+                                            clearCwCooldown();
+                                        }
                                     }}
                                     onScroll={handleCwScroll}
                                 />
@@ -357,10 +420,15 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
                             <button
                                 id="eq-submit"
                                 className="quiz-start-btn"
-                                disabled={loading}
+                                disabled={loading || checkingCode || cwCooldown > 0}
                                 onClick={cw_check}
                             >
-                                Submit
+                                {checkingCode
+                                    ? 'Evaluating...'
+                                    : cwCooldown > 0
+                                        ? `Submit (${cwCooldown}s)`
+                                        : 'Submit'
+                                }
                             </button>
 
                             <button
@@ -369,6 +437,8 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
                                 hidden={true}
                                 disabled={loading}
                                 onClick={async () => {
+                                    clearCwCooldown();
+                                    setCheckingCode(false);
                                     setCurrentQuestion(null);
                                     document.getElementById('eq-next').hidden = true;
                                     document.getElementById('eq-submit').hidden = false;
