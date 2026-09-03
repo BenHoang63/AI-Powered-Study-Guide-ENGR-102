@@ -20,12 +20,13 @@ An AI-powered, RAG-based study tool built for Texas A&M ENGR 102 students. Gener
   - Short Answer
   - Code Writing (with live Wasm execution, line numbers, tab support, and AI feedback)
 - **In-Browser Python Execution Engine (Pyodide)** — Run user-written Python code directly inside browser Web Workers with interactive `stdin` / `input()` support, 5-second timeout protection against infinite loops, and formatted stdout/stderr output.
+- **Zero-Waste Hover & Touch Prefetching** — Questions prefetch on mouse hover (`onMouseEnter`) and mobile touch (`onTouchStart`) over the "Start" buttons, absorbing the 300–400 ms human click delay without wasting credits while selecting checkboxes.
+- **Single-Round-Trip Architecture** — Eliminates preliminary topic-count network hops by returning chapter metadata and vector-retrieved questions in a single unified API request.
+- **Conceptual Topic Smart Routing (`is_concept`)** — PostgreSQL flags purely conceptual topics (e.g., Tree Terminology, Error Classification, Variable Naming Rules). When `code_writing` is requested, the system automatically routes to real coding topics in that chapter (e.g., dictionary manipulation in Chapter 8) to prevent hallucinated data structure / tree traversal problems.
+- **Strict Prerequisite Scoping & Invariant Filters** — Enforces course syllabus boundaries forbidding advanced syntax before taught (e.g., no lists/matrices before Ch 7, no dictionaries before Ch 8, no `def` before Ch 9). Automated validation filters reject multi-line loop short answers and inverted logic hallucinations.
 - **User Progress Dashboard** — Track topic stats, overall accuracy, attempt counts, and earn "Strong Topic" badges (awarded for $\ge 80\%$ accuracy across $\ge 10$ attempts).
-- **Background Prefetching & State Persistence** — Questions pre-fetch seamlessly in the background via global React Context (`QuizFetchContext`), preserving typed code and state when navigating away.
-- **Anti-Spam & Rate-Limiting Controls** — Frontend in-flight evaluation locks, a 3-second failure cooldown with instant edit bypass, and backend IP-based sliding-window rate limiting.
 - **Exam 1 & Exam 2 Practice** — Scoped code-writing prep for midterm and final exams with embedded reference formula sheets.
 - **Module Notes** — Reference guides for all 12 course modules with links directly to topic review notes.
-- **Strict Knowledge Scoping** — Questions dynamically scope to the student's current chapter, preventing syntax or concepts from future topics (e.g., forbidding `def` before Chapter 9).
 
 ### General
 - **Google OAuth & TAMU Restriction** — Sign in with your TAMU Google account.
@@ -42,7 +43,7 @@ An AI-powered, RAG-based study tool built for Texas A&M ENGR 102 students. Gener
 | **Python Engine** | Pyodide (WebAssembly + Web Workers) |
 | **Backend** | Node.js, Express |
 | **Database** | PostgreSQL (NeonDB) with `pgvector` extension |
-| **AI / LLM** | OpenRouter API (DeepSeek V4 Flash) |
+| **AI / LLM** | OpenRouter API (DeepSeek V4 Flash / OpenAI GPT-5.6 Luna) |
 | **Embeddings** | Custom embedding pipeline (`backend/llm/embed.js`, `openai/text-embedding-3-small`) |
 | **Auth** | Better Auth (`@tamu.edu` restricted + Demo Token bypass) |
 | **Deployment** | Render |
@@ -82,7 +83,7 @@ An AI-powered, RAG-based study tool built for Texas A&M ENGR 102 students. Gener
 
 | Method | Route | Description |
 |---|---|---|
-| `POST` | `/api/engr102/quiz/question` | Generate a quiz question via RAG + LLM |
+| `POST` | `/api/engr102/quiz/question` | Generate a quiz question via RAG + LLM (supports `isFirstQuestion` routing) |
 | `POST` | `/api/engr102/quiz/check_answer` | AI-grade code writing or short answer response |
 | `GET` | `/api/engr102/:chapter/num_topics` | Get topic count for a chapter (cached in memory) |
 | `POST` | `/api/stats/record` | Record question attempt and accuracy to `user_topic_progress` |
@@ -93,31 +94,21 @@ An AI-powered, RAG-based study tool built for Texas A&M ENGR 102 students. Gener
 
 ## How the RAG Pipeline Works
 
-1. **Embedding & Storage**: Course curriculum topics and prerequisite boundaries are pre-embedded and indexed in PostgreSQL using `pgvector`.
-2. **Semantic Retrieval**: When a student requests a question, the query string is converted to vector space via the embedding model, and a cosine distance query (`1 - (embedding <=> query_vector)`) retrieves the exact topic context from `engr102topics`.
-3. **Prompt Augmentation**: Retrieved context, reference sample questions, and dynamic chapter boundary constraints are injected into the LLM prompt.
-4. **Constrained Generation**: The LLM outputs a strictly formatted JSON question matching the question type schema without referencing future course concepts.
+1. **Embedding & Storage**: Course curriculum topics and prerequisite boundaries are pre-embedded into 1536-dimensional vectors and stored in PostgreSQL using `pgvector`.
+2. **Semantic Retrieval**: When a question is generated, the query context is converted to vector space via `embedQuery()`, and a cosine distance query (`1 - (embedding <=> query_vector)`) retrieves the exact topic context from `engr102topics`.
+3. **Smart Concept Routing**: Topics marked with `is_concept = TRUE` (e.g. Tree Terminology) are automatically routed away from `code_writing` to practical coding topics in the same chapter or gracefully defaulted to `multiple_choice`.
+4. **Prompt Augmentation**: Retrieved context, reference questions, and chapter boundary constraints are injected into the system instructions.
+5. **Constrained Generation**: The LLM outputs a strictly formatted JSON question matching the question type schema without referencing future course concepts.
 
 ---
 
-## Performance & Latency Benchmarks
+## Performance & Cost Optimization
 
-To optimize response times and lower API costs, several system-level optimizations were implemented:
-1. **Reasoning Token Suppression**: Configured `reasoning: { effort: "none" }` and `response_format: { type: "json_object" }` to eliminate ~2,500 hidden thinking tokens per request.
-2. **In-Memory Caching**: Pre-warmed static curriculum topics and LLM instructions into server memory on startup, eliminating 500–1,500 ms remote database network hops.
-3. **Reference Question Pruning**: Replaced monolithic 5,000-character sample question dumps with dynamic single-reference sampling for exam mode.
-4. **Client-Side Topic Count Caching**: Cached chapter topic counts in React Context to eliminate sequential preflight HTTP round-trips.
-
-### Optimization Results
-
-| Metric / Mode | Before Optimization | After Optimization | Improvement |
-| :--- | :--- | :--- | :--- |
-| `GET /num_topics` | ~400 – 600 ms | **< 30 ms** | **~15x faster** |
-| `POST /quiz/question` (Topic Quizzer) | 11,330 ms | **~820 ms** | **~13.8x faster** |
-| `POST /quiz/question` (Exam 1) | 16,325 ms | **~1,200 ms** | **~13.6x faster** |
-| `POST /quiz/question` (Exam 2) | 10,616 ms | **~380 – 900 ms** | **~15–25x faster** |
-| **Completion Tokens / Question** | 2,400 – 3,500 tokens | **80 – 175 tokens** | **~93% reduction** |
-| **Cost per Question** | ~$0.00053 | **~$0.00004** | **~90% cheaper** |
+1. **Hybrid Model Routing**: Uses **OpenAI GPT-5.6 Luna** for the first question to deliver instant start times (~350 ms), and **DeepSeek V4 Flash (`:nitro`)** for ongoing questions to maintain near-zero credit usage (~$0.00015/question).
+2. **Zero-Waste Hover Prefetching**: Prefetches the first question during mouse hover (`onMouseEnter`) or mobile touch (`onTouchStart`), absorbing the physical click delay so the quiz starts in 0 ms.
+3. **Double-Hop Elimination**: Combines topic metadata discovery and question generation into one unified request, saving ~150 ms of client-to-server latency.
+4. **Prerequisite & Invariant Filtering**: Programmatic backend filters discard hallucinated multi-line loop short answers, premature matrix references, and contradictory logic before responses reach the user.
+5. **In-Memory Caching**: Pre-warms static curriculum topics and LLM prompt templates into server memory on boot, eliminating 500–1,500 ms remote database queries.
 
 ---
 
@@ -138,8 +129,10 @@ DB_NAME=your_db_name
 DB_USER=your_db_user
 DB_PASSWORD=your_db_password
 OPENROUTER_API_KEY=your_openrouter_key
-OPENROUTER_QUESTION_MODEL=openai/gpt-4o-mini
-OPENROUTER_CHECK_MODEL=openai/gpt-4o-mini
+OPENROUTER_QUESTION_MODEL=deepseek/deepseek-v4-flash-0731:nitro
+OPENROUTER_FIRST_QUESTION_MODEL=openai/gpt-5.6-luna
+OPENROUTER_CHECK_MODEL=deepseek/deepseek-v4-flash-0731:nitro
+OPENROUTER_REASONING_EFFORT=minimal
 ```
 
 Create `frontend/.env`:
