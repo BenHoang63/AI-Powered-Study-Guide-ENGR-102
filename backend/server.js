@@ -1,10 +1,11 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-const QUESTION_MODEL   = process.env.OPENROUTER_QUESTION_MODEL || "deepseek/deepseek-v4-flash-0731";
-const CHECK_MODEL      = process.env.OPENROUTER_CHECK_MODEL    || "deepseek/deepseek-v4-flash-0731";
-const REASONING_EFFORT = process.env.OPENROUTER_REASONING_EFFORT || "low";
-console.log(`[Models] Question: ${QUESTION_MODEL} | Check: ${CHECK_MODEL} | Reasoning: ${REASONING_EFFORT}`);
+const QUESTION_MODEL       = process.env.OPENROUTER_QUESTION_MODEL || "deepseek/deepseek-v4-flash-0731";
+const FIRST_QUESTION_MODEL = process.env.OPENROUTER_FIRST_QUESTION_MODEL || "openai/gpt-5.6-luna";
+const CHECK_MODEL          = process.env.OPENROUTER_CHECK_MODEL    || "deepseek/deepseek-v4-flash-0731";
+const REASONING_EFFORT     = process.env.OPENROUTER_REASONING_EFFORT || "low";
+console.log(`[Models] Question: ${QUESTION_MODEL} | FirstQ: ${FIRST_QUESTION_MODEL} | Check: ${CHECK_MODEL} | Reasoning: ${REASONING_EFFORT}`);
 
 import express from "express";
 import pg from "pg";
@@ -58,7 +59,7 @@ async function getCachedTopics() {
 	if (topicsCache) return topicsCache;
 	try {
 		const result = await pool.query(
-			"SELECT chapter, topic, topic_name, context, question, other_instruction FROM engr102topics ORDER BY chapter, topic"
+			"SELECT chapter, topic, topic_name, context, question, other_instruction, COALESCE(is_concept, FALSE) AS is_concept FROM engr102topics ORDER BY chapter, topic"
 		);
 		const map = new Map();
 		for (const row of result.rows) {
@@ -141,8 +142,9 @@ app.post("/api/engr102/quiz/question", async (req, res) => {
 	*/
 
 	// get body and variables
-	const { chapter, topic, type } = req.body;
+	const { chapter, topic, type, isFirstQuestion } = req.body;
 	const chNum = Number(chapter);
+	let effectiveType = type;
 
 	// ── Fast in-memory topic retrieval (0ms DB latency) ──
 	let topic_name = "";
@@ -150,9 +152,11 @@ app.post("/api/engr102/quiz/question", async (req, res) => {
 	let sample = "";
 	let other_instruction = "";
 	let topic_number = Number(topic) || 1;
+	let topic_count = 0;
 
 	try {
 		const topicsMap = await getCachedTopics();
+		topic_count = (topicsMap?.get(chNum) || []).length;
 
 		if (chNum >= 13) {
 			// Exam mode: direct lookup without embedding call
@@ -195,6 +199,21 @@ app.post("/api/engr102/quiz/question", async (req, res) => {
 		} else {
 			// ── Vector RAG Retrieval via pgvector ──
 			const chTopics = topicsMap?.get(chNum) || [];
+			if (!topic && chTopics.length > 0) {
+				if (effectiveType === "code_writing") {
+					const codingTopics = chTopics.filter(t => !t.is_concept);
+					if (codingTopics.length > 0) {
+						const picked = codingTopics[Math.floor(Math.random() * codingTopics.length)];
+						topic_number = Number(picked.topic);
+					} else {
+						// Entire chapter is conceptual; fallback to multiple_choice
+						effectiveType = "multiple_choice";
+						topic_number = Math.floor(Math.random() * chTopics.length) + 1;
+					}
+				} else {
+					topic_number = Math.floor(Math.random() * chTopics.length) + 1;
+				}
+			}
 			const requestedTopic = chTopics.find(t => Number(t.topic) === topic_number) 
 				|| chTopics[0];
 
@@ -232,6 +251,11 @@ app.post("/api/engr102/quiz/question", async (req, res) => {
 				question_topic = requestedTopic;
 			}
 
+			if (question_topic?.is_concept && effectiveType === "code_writing") {
+				console.log(`[Smart Routing] Topic ${topic_number} (${question_topic.topic_name}) is conceptual. Overriding 'code_writing' to 'multiple_choice'.`);
+				effectiveType = "multiple_choice";
+			}
+
 			if (!question_topic) {
 				return res.status(404).json({ error: "Topic not found" });
 			}
@@ -248,10 +272,10 @@ app.post("/api/engr102/quiz/question", async (req, res) => {
 	}
 
 	// create question prompt (cached in memory)
-	let questionPrompt = await getCachedInstructions(type);
+	let questionPrompt = await getCachedInstructions(effectiveType);
 	if (!questionPrompt) {
 		try {
-			const result2 = await pool.query("SELECT instructions FROM llm_instructions WHERE type=$1", [type]);
+			const result2 = await pool.query("SELECT instructions FROM llm_instructions WHERE type=$1", [effectiveType]);
 			if (result2.rows.length === 0) {
 				return res.status(404).json({ error: "Instructions not found" });
 			}
@@ -328,14 +352,14 @@ ${questionPrompt}
 `;
 
 	let effectiveOtherInstruction = other_instruction || "";
-	if (type !== "multiple_answer") {
+	if (effectiveType !== "multiple_answer") {
 		// Strip any "Select all" instructions when generating single-choice, short-answer, or code questions
 		effectiveOtherInstruction = effectiveOtherInstruction
 			.replace(/\b(select|choose)\s+all\b[^.]*\.?/gi, "")
 			.trim();
 	}
 
-	const userPrompt = `Generate a ${type} question about topic ${topic_name}: ${context}.
+	const userPrompt = `Generate a ${effectiveType} question about topic ${topic_name}: ${context}.
 
 Sample reference questions (DO NOT REUSE ANY PARTS OF THESE):
 ${sample}
@@ -344,7 +368,8 @@ Other instructions: ${effectiveOtherInstruction || "N/A"}
 `;
 
 	for (let i = 0; i < 3; i++) {
-		const currentModel = i === 0 ? QUESTION_MODEL : (process.env.OPENROUTER_CHECK_MODEL || "deepseek/deepseek-v4-flash-0731");
+		const defaultFirstModel = isFirstQuestion ? FIRST_QUESTION_MODEL : QUESTION_MODEL;
+		const currentModel = i === 0 ? defaultFirstModel : (process.env.OPENROUTER_CHECK_MODEL || defaultFirstModel);
 		try {
 			const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
 				method: "POST",
@@ -511,6 +536,7 @@ Other instructions: ${effectiveOtherInstruction || "N/A"}
 			return res.json({
 				"topic_number": topic_number,
 				"topic_name": topic_name,
+				"topic_count": topic_count,
 				"llm_response": question,
 			});
 

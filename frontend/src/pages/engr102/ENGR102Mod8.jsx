@@ -155,6 +155,20 @@ const ENGR102Mod8 = () => {
                                 </span>
                             </div>
                         </div>
+                        <h3>Deleting a Dictionary Element</h3>
+                        <div className='block'>
+                            <p>You probably won't need to know this, but you can also delete elements from a dictionary, 
+                                using the <code>del</code> keyword.
+                            </p>
+                            <div className='code'>
+                                student_GPA = {"{"}'john': 3.5, 'jane': 3.75, 'joe': 2.1, 'jack': 4.0{"}"}<br></br>
+                                del student_GPA["joe"]<br></br>
+                                print( student_GPA )<br></br><br></br>
+                                <span className='comment'> # Result:<br></br>
+                                    {"{"}'john': 3.5, 'jane': 3.75, 'jack': 4.0{"}"}
+                                </span>
+                            </div>
+                        </div>
                     </div>
                     
 

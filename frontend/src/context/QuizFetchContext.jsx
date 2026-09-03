@@ -75,37 +75,32 @@ export const QuizFetchProvider = ({ children }) => {
      * @param {number}   [config.extraSlots] – array length (TopicQuizzer = 8, Exam = 5)
      * @param {string}   [config.channel]   – prefetch channel identifier
      */
-    const fetchQuestionData = async ({ chapters, types, extraSlots = 5, channel = 'default' }) => {
+    const fetchQuestionData = async ({ chapters, types, extraSlots = 5, channel = 'default', isFirstQuestion = false }) => {
         const ch = chapters[getSecureRandomInt(chapters.length)];
         const questionType = getNextQuestionType(types, channel);
 
-        let tp = 1;
-        // Check in-memory cache for topic count to avoid duplicate round-trips
-        if (topicCountsCache.current[ch]) {
-            tp = getSecureRandomInt(topicCountsCache.current[ch]) + 1;
-        } else {
-            try {
-                const res = await fetch(`/api/engr102/${ch}/num_topics`);
-                if (res.ok) {
-                    const data = await res.json();
-                    topicCountsCache.current[ch] = data.topicCount || 5;
-                    tp = getSecureRandomInt(topicCountsCache.current[ch]) + 1;
-                }
-            } catch (err) {
-                console.error('[QuizFetchContext] Could not get topic count, using fallback:', err);
-                tp = 1;
-            }
-        }
+        // If topic count is cached in memory, pick a random topic; otherwise, let the backend RAG pipeline pick directly in 1 round trip!
+        let tp = topicCountsCache.current[ch]
+            ? getSecureRandomInt(topicCountsCache.current[ch]) + 1
+            : undefined;
 
         try {
             const res2 = await fetch('/api/engr102/quiz/question', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ chapter: ch, topic: tp, type: questionType }),
+                body: JSON.stringify({ 
+                    chapter: ch, 
+                    ...(tp ? { topic: tp } : {}), 
+                    type: questionType,
+                    isFirstQuestion: Boolean(isFirstQuestion)
+                }),
             });
             if (!res2.ok) throw new Error(res2.statusText);
             const data2 = await res2.json();
-            const actualTopic = data2.topic_number || tp;
+            if (data2.topic_count) {
+                topicCountsCache.current[ch] = data2.topic_count;
+            }
+            const actualTopic = data2.topic_number || tp || 1;
 
             return extraSlots === 8
                 ? [ch, actualTopic, data2.topic_name, data2.llm_response, null, false, false, false]

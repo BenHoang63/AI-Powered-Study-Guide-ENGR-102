@@ -412,18 +412,19 @@ const ENGR102TopicQuizzer = () => {
 
     // ========================== GET QUESTION ========================== //
 
-    const getFetchConfig = () => ({
+    const getFetchConfig = (isFirstQuestion = false) => ({
         chapters: selectedTopics.length > 0 ? selectedTopics : [1],
         types: selectedTypes.length > 0 ? selectedTypes : Object.keys(QUESTION_TYPE_LABELS),
         extraSlots: 8,
+        isFirstQuestion: Boolean(isFirstQuestion),
     });
 
-    const prefetchNextQuestion = () => {
+    const prefetchNextQuestion = (isFirstQuestion = false) => {
         setPrefetchLoading(true);
-        prefetch('topicQuizzer', getFetchConfig());
+        prefetch('topicQuizzer', getFetchConfig(isFirstQuestion));
     };
 
-    const getQuestion = async (forceFresh = false) => {
+    const getQuestion = async (forceFresh = false, isFirstQuestion = false) => {
         let qData = null;
 
         if (!forceFresh) {
@@ -444,7 +445,7 @@ const ENGR102TopicQuizzer = () => {
         // If no pre-fetched data available, fetch now
         if (!qData) {
             setLoading(true);
-            qData = await fetchQuestionData(getFetchConfig());
+            qData = await fetchQuestionData(getFetchConfig(isFirstQuestion));
             setLoading(false);
         }
 
@@ -1030,14 +1031,23 @@ const ENGR102TopicQuizzer = () => {
                     <button
                         className="quiz-start-btn"
                         disabled={selectedTopics.length === 0 || selectedTypes.length === 0}
+                        onMouseEnter={() => {
+                            if (selectedTopics.length > 0 && selectedTypes.length > 0) {
+                                prefetchNextQuestion(true);
+                            }
+                        }}
+                        onTouchStart={() => {
+                            if (selectedTopics.length > 0 && selectedTypes.length > 0) {
+                                prefetchNextQuestion(true);
+                            }
+                        }}
                         onClick={ async () => {
                             const blank = [1, 1, "topic", {}, null, false, false, false];
                             setCurrentQuestion(blank);
                             setNextQuestion(blank);
                             sessionStorage.removeItem('quizzer_currentQuestion');
-                            clearPrefetch('topicQuizzer');
                             toggleUI();
-                            const qData = await getQuestion(true);
+                            const qData = await getQuestion(false, true);
                             start_question_setup(qData);
                         }}
                     >

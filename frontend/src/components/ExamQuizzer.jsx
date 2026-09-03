@@ -141,10 +141,11 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
 
     const { fetchQuestionData, prefetch, consumePrefetch } = useQuizFetch();
 
-    const getFetchConfig = () => ({
+    const getFetchConfig = (isFirstQuestion = false) => ({
         chapters,
         types: ['code_writing'],
         extraSlots: 5,
+        isFirstQuestion: Boolean(isFirstQuestion),
     });
 
     useEffect(() => {
@@ -182,12 +183,12 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
         }
     };
 
-    const prefetchNextQuestion = () => {
+    const prefetchNextQuestion = (isFirstQuestion = false) => {
         setPrefetchLoading(true);
-        prefetch('examQuizzer', getFetchConfig());
+        prefetch('examQuizzer', getFetchConfig(isFirstQuestion));
     };
 
-    const getQuestion = async () => {
+    const getQuestion = async (isFirstQuestion = false) => {
         let qData = null;
 
         // Try to consume the prefetched question from the global context
@@ -196,7 +197,7 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
         // If no pre-fetched data available, fetch now
         if (!qData) {
             setLoading(true);
-            qData = await fetchQuestionData(getFetchConfig());
+            qData = await fetchQuestionData(getFetchConfig(isFirstQuestion));
             setLoading(false);
         }
 
@@ -312,11 +313,10 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
         }
     };
 
-    const startQuiz = async () => {
+    const startQuiz = async (isFirst = false) => {
         setLoading(true);
-        setCurrentQuestion(null);
         setQuizStarted(true);
-        const qData = await getQuestion();
+        const qData = await getQuestion(isFirst);
         setLoading(false);
         if (qData) {
             cw_setup(qData);
@@ -374,7 +374,13 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
                             These questions are not represntative of the exam questions, but are meant to review your topics.<br></br>
                         Note: there will be multiple choice, short answer, and multiple-answer questions on the exam, but use the topic quizzer to review your topics.
                     </p>
-                    <button className="quiz-start-btn" onClick={startQuiz} disabled={loading}>
+                    <button 
+                        className="quiz-start-btn" 
+                        onMouseEnter={() => prefetchNextQuestion(true)}
+                        onTouchStart={() => prefetchNextQuestion(true)}
+                        onClick={() => startQuiz(true)} 
+                        disabled={loading}
+                    >
                         {loading ? 'Loading...' : 'Start Practice'}
                     </button>
                 </div>
