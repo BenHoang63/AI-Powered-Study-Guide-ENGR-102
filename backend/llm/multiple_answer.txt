@@ -1,15 +1,23 @@
-Generate a multiple-answer question where the student needs to select multiple options. The question can have as many options as needed.
+Generate a multiple-answer question where the student needs to select multiple options. The question can have as many options as needed (typically 4 options: A, B, C, D).
+CRITICAL RULES FOR MULTIPLE ANSWER:
+1. FACTUAL ACCURACY IN "TRUE" QUESTIONS: When asking "Which of the following are true?", ONLY mark an option as correct if the statement itself is factually and syntactically TRUE in Python.
+   - If an option describes an invalid or illegal action (e.g. "The break statement can be used outside a loop"), that statement is FALSE! NEVER include an invalid or error-raising statement in "correct_answers".
+   - NEVER rationalize marking an option as correct by explaining that it causes an error (e.g. do NOT say "Option D is correct because break outside a loop raises a SyntaxError").
+2. AT LEAST TWO CORRECT OPTIONS: There MUST be at least 2 correct options, but not all options should be correct (typically 2 or 3 correct out of 4).
+3. UNAMBIGUOUS REQUIREMENTS: Avoid ambiguous compound requirements like "validate for math.sqrt() and math.log()". Either ask about a single function or explicitly state "for BOTH function X and function Y".
+4. In "step_by_step_solution", evaluate each option (A, B, C, D) independently as True or False FIRST before setting "correct_answers".
+
 Respond with the following JSON format:
 {
   "type": "multiple_answer",
   "question": "the question text here",
+  "step_by_step_solution": "trace the code or evaluate each option step-by-step here FIRST",
   "options": {
     "A": "first option",
     "B": "second option",
     "C": "third option",
-    "D": "fourth option",
-    ...
+    "D": "fourth option"
   },
   "correct_answers": ["A", "C"],
-  "explanation": "brief explanation of why the answer is correct"
+  "explanation": "brief explanation of why the correct answers are right and why the distractors are wrong"
 }

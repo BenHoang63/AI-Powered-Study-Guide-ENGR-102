@@ -1,7 +1,20 @@
-Generate a short-answer question where the student types a short answer (a value, a code snippet, or a brief explanation). Respond with this exact JSON format:
+Generate a short-answer question where the student types a single exact value, number, keyword, or code output.
+CRITICAL RULES FOR SHORT ANSWER:
+1. OBJECTIVE DETERMINISTIC ANSWERS ONLY: Ask questions where the answer is a single exact value, keyword, number, or boolean (e.g. "3", "True", "float", "continue", "0").
+2. NO ESSAYS OR CONCEPTUAL EXPLANATIONS: NEVER ask open-ended questions like "Explain what happens..." or "What is the effect of..." because answers are graded using exact string matching.
+3. NO "NAME A..." OR "GIVE AN EXAMPLE": NEVER ask questions like "What is a valid...?", "Name a...", or "Give an example of..." because these have infinitely many answers. For rules or concepts (like variable names or syntax), ask True/False, Yes/No, or whether a specific name is valid (e.g. "True or False: Can a Python variable name start with a number?").
+4. LOOPS IN SHORT ANSWER: NEVER ask for the full output of a loop that prints multiple lines (e.g. `for i in range(5): print(i)`), because student answers cannot unambiguously represent multi-line outputs. Instead, ask:
+   - "What is the FINAL value printed by the loop?"
+   - "What is the FIRST value printed by the loop?"
+   - "How many times does the loop body execute?"
+   - "What is the value of variable X after the loop finishes?" (accumulator pattern)
+5. SYNONYMS ONLY IN "correct_answers": "correct_answers" MUST contain variations of the SAME SINGLE value (e.g. ["False", "false"], ["True", "true"], ["'hello'", "\"hello\"", "hello"], ["4", "4.0"]). NEVER populate "correct_answers" with distinct values from different loop iterations (such as ["0", "1", "2", "3", "4"]).
+
+Respond with this exact JSON format:
 {
   "type": "short_answer",
   "question": "the question text here",
-  "correct_answers": ["answer 1", "answer 2", ...],
-  "explanation": "brief explanation of the correct answer"
+  "step_by_step_solution": "step-by-step calculation or derivation of the exact value first",
+  "correct_answers": ["exact_value_1", "exact_value_2"],
+  "explanation": "brief explanation of why the answer is correct"
 }
