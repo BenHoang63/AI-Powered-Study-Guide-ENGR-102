@@ -28,13 +28,44 @@ const QUESTION_TYPE_LABELS = {
     multiple_answer: "Multiple Answer"
 };
 
+const parseInlineBold = (text) => {
+    // Matches Markdown bold: must open after start/whitespace/punctuation, contain non-whitespace, and close before end/whitespace/punctuation.
+    // This strictly prevents Python exponent operators like **2, 5 ** (1/2), or x ** y from being falsely parsed as bold.
+    const boldRegex = /(^|[\s.,;:!?()])\*\*([^\s*](?:[^*]*?[^\s*])?)\*\*(?=[\s.,;:!?()]|$)/g;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = boldRegex.exec(text)) !== null) {
+        const matchStart = match.index;
+        const prefix = match[1];
+        const boldText = match[2];
+        const matchEnd = boldRegex.lastIndex;
+
+        if (matchStart > lastIndex) {
+            parts.push({ type: 'text', content: text.substring(lastIndex, matchStart) });
+        }
+        if (prefix) {
+            parts.push({ type: 'text', content: prefix });
+        }
+        parts.push({ type: 'bold', content: boldText });
+
+        lastIndex = matchEnd;
+    }
+
+    if (lastIndex < text.length) {
+        parts.push({ type: 'text', content: text.substring(lastIndex) });
+    }
+
+    return parts;
+};
+
 const renderFormattedText = (text) => {
     if (!text || typeof text !== 'string') return text;
 
-    // Normalize escaped backticks (\`), escaped newlines (\\n), and unicode grave accents
+    // Normalize escaped backticks (\`) and unicode grave accents
     const normalizedText = text
         .replace(/\\`/g, '`')
-        .replace(/\\n/g, '\n')
         .replace(/[\u2018\u2019\u00b4\u02cb\u02cf]/g, '`');
 
     // Split by code blocks (```code```)
@@ -65,14 +96,14 @@ const renderFormattedText = (text) => {
                             </code>
                         );
                     }
-                    // Handle **bold** markdown within plain text
-                    const boldParts = inlineChunk.split(/\*\*/g);
-                    return boldParts.map((boldChunk, boldIdx) => {
-                        if (boldIdx % 2 === 1) {
-                            return <strong key={`bold-${boldIdx}`}>{boldChunk}</strong>;
+                    // Handle **bold** markdown within plain text without breaking Python exponents (**2, 5 ** 2)
+                    const parts = parseInlineBold(inlineChunk);
+                    return parts.map((part, partIdx) => {
+                        if (part.type === 'bold') {
+                            return <strong key={`bold-${inlineIdx}-${partIdx}`}>{part.content}</strong>;
                         }
-                        return boldChunk.split('\n').map((line, lineIdx, arr) => (
-                            <span key={`line-${lineIdx}`}>
+                        return part.content.split('\n').map((line, lineIdx, arr) => (
+                            <span key={`line-${inlineIdx}-${partIdx}-${lineIdx}`}>
                                 {line}
                                 {lineIdx < arr.length - 1 && <br />}
                             </span>
@@ -320,7 +351,10 @@ const ENGR102TopicQuizzer = () => {
 
     // ========================== TOPIC SELECT ========================== //
 
+    const { fetchQuestionData, prefetch, consumePrefetch, clearPrefetch } = useQuizFetch();
+
     const toggleTopic = (topicId) => {
+        clearPrefetch('topicQuizzer');
         setSelectedTopics((prev) =>
             prev.includes(topicId)
                 ? prev.filter((id) => id !== topicId)
@@ -329,6 +363,7 @@ const ENGR102TopicQuizzer = () => {
     };
 
     const toggleAll = () => {
+        clearPrefetch('topicQuizzer');
         if (selectedTopics.length === TOPICS.length) {
             setSelectedTopics([]);
         } else {
@@ -337,6 +372,7 @@ const ENGR102TopicQuizzer = () => {
     };
 
     const toggleType = (typeKey) => {
+        clearPrefetch('topicQuizzer');
         setSelectedTypes((prev) =>
             prev.includes(typeKey)
                 ? prev.filter((t) => t !== typeKey)
@@ -345,6 +381,7 @@ const ENGR102TopicQuizzer = () => {
     };
 
     const toggleAllTypes = () => {
+        clearPrefetch('topicQuizzer');
         const allTypeKeys = Object.keys(QUESTION_TYPE_LABELS);
         if (selectedTypes.length === allTypeKeys.length) {
             setSelectedTypes([]);
@@ -362,18 +399,18 @@ const ENGR102TopicQuizzer = () => {
         desc.hidden = !desc.hidden;
         setQuizMode(!quizMode);
         if (clearQuestion) {
-            // Clear saved question so a fresh one loads next time
+            // Clear saved question and prefetch so a fresh one loads next time
             const blank = [1, 1, "topic", {}, null, false, false, false];
             setCurrentQuestion(blank);
+            setNextQuestion(blank);
             sessionStorage.removeItem('quizzer_currentQuestion');
             sessionStorage.setItem('quizzer_quizMode', 'false');
+            clearPrefetch('topicQuizzer');
         }
     };
 
 
     // ========================== GET QUESTION ========================== //
-
-    const { fetchQuestionData, prefetch, consumePrefetch } = useQuizFetch();
 
     const getFetchConfig = () => ({
         chapters: selectedTopics.length > 0 ? selectedTopics : [1],
@@ -386,11 +423,23 @@ const ENGR102TopicQuizzer = () => {
         prefetch('topicQuizzer', getFetchConfig());
     };
 
-    const getQuestion = async () => {
+    const getQuestion = async (forceFresh = false) => {
         let qData = null;
 
-        // Try to consume the prefetched question from the global context
-        qData = await consumePrefetch('topicQuizzer');
+        if (!forceFresh) {
+            // Try to consume the prefetched question from the global context
+            qData = await consumePrefetch('topicQuizzer');
+            // Validate that the prefetched question belongs to the current topic and type selection
+            if (qData) {
+                const qChapter = qData[0];
+                const qType = qData[3]?.type;
+                const validTopic = selectedTopics.length === 0 || selectedTopics.includes(qChapter);
+                const validType = selectedTypes.length === 0 || selectedTypes.includes(qType);
+                if (!validTopic || !validType) {
+                    qData = null; // Discard stale question from previous selection
+                }
+            }
+        }
 
         // If no pre-fetched data available, fetch now
         if (!qData) {
@@ -524,30 +573,36 @@ const ENGR102TopicQuizzer = () => {
             submitBtn.disabled = false;
         }
         document.getElementById('next-question').hidden = true;
+        const showAnsBtn = document.getElementById('show-answer');
+        if (showAnsBtn) showAnsBtn.hidden = false;
     };
 
+    const cleanAnswerStr = (s) => (s || "")
+        .toString()
+        .trim()
+        .toLowerCase()
+        .replace(/^['"`]|['"`]$/g, '')
+        .replace(/\\n/g, '\n')
+        .replace(/\r\n/g, '\n')
+        .trim();
+
     const sa_check = () => {
-        const userVal = document.getElementById('sa_answer')?.value?.trim()?.toLowerCase();
+        const userVal = cleanAnswerStr(document.getElementById('sa_answer')?.value);
         if (!userVal) {
             setExplanationText("Please enter an answer.");
             document.getElementById('explanation').hidden = false;
             return;
         }
         const answers = currentQuestion[3]?.correct_answers || [];
-        let isCorrect = false;
-
-        for (let answer of answers) {
-            if (answer.toString().trim().toLowerCase() === userVal) {
-                isCorrect = true;
-                break;
-            }
-        }
+        const isCorrect = answers.some(ans => cleanAnswerStr(ans) === userVal);
 
         if (isCorrect) {
             setExplanationText(`Correct! ${currentQuestion[3].explanation}`);
             document.getElementById('explanation').hidden = false;
             document.getElementById('submit').hidden = true;
             document.getElementById('next-question').hidden = false;
+            const showAnsBtn = document.getElementById('show-answer');
+            if (showAnsBtn) showAnsBtn.hidden = true;
             handleAnswerAttempt(true);
         } else {
             setExplanationText("Incorrect. Try again.");
@@ -779,6 +834,9 @@ const ENGR102TopicQuizzer = () => {
 
         const nextBtn = document.getElementById('next-question');
         if (nextBtn) nextBtn.hidden = true;
+
+        const showAnsBtn = document.getElementById('show-answer');
+        if (showAnsBtn) showAnsBtn.hidden = false;
     };
 
     const ma_select = (choice) => {
@@ -820,12 +878,50 @@ const ENGR102TopicQuizzer = () => {
             document.getElementById('explanation').hidden = false;
             document.getElementById('submit').hidden = true;
             document.getElementById('next-question').hidden = false;
+            const showAnsBtn = document.getElementById('show-answer');
+            if (showAnsBtn) showAnsBtn.hidden = true;
             handleAnswerAttempt(true);
         } else {
             setExplanationText("Incorrect. Try again.");
             document.getElementById('explanation').hidden = false;
             handleAnswerAttempt(false);
         }
+    };
+
+    // ========================== SHOW ANSWER (DISQUALIFY & REVEAL) ========================== //
+
+    const handleShowAnswer = () => {
+        const qData = currentQuestion[3];
+        if (!qData) return;
+
+        // Disqualify: record as incorrect (1 attempt, 0 correct) and mark failed
+        handleAnswerAttempt(false);
+        recordProgress(1, 0);
+        setCurrentQuestion(prev => [prev[0], prev[1], prev[2], prev[3], prev[4], false, true, true]);
+
+        if (qData.type === 'short_answer') {
+            const answers = qData.correct_answers || [];
+            const primaryAns = answers[0] || "";
+            setExplanationText(`The correct answer is: ${primaryAns}\n\n${qData.explanation || ""}`);
+        } else if (qData.type === 'multiple_answer') {
+            const correctList = qData.correct_answers || [];
+            document.querySelectorAll('.ma_option').forEach(btn => {
+                const choiceKey = btn.innerText?.trim()?.charAt(0);
+                if (correctList.includes(choiceKey)) {
+                    btn.style.backgroundColor = '#4caf50';
+                    btn.style.color = '#fff';
+                }
+                btn.disabled = true;
+            });
+            setExplanationText(`The correct answers are: ${correctList.join(", ")}\n\n${qData.explanation || ""}`);
+        }
+
+        document.getElementById('explanation').hidden = false;
+        document.getElementById('submit').hidden = true;
+        document.getElementById('next-question').hidden = false;
+
+        const showAnsBtn = document.getElementById('show-answer');
+        if (showAnsBtn) showAnsBtn.hidden = true;
     };
 
 
@@ -935,8 +1031,13 @@ const ENGR102TopicQuizzer = () => {
                         className="quiz-start-btn"
                         disabled={selectedTopics.length === 0 || selectedTypes.length === 0}
                         onClick={ async () => {
+                            const blank = [1, 1, "topic", {}, null, false, false, false];
+                            setCurrentQuestion(blank);
+                            setNextQuestion(blank);
+                            sessionStorage.removeItem('quizzer_currentQuestion');
+                            clearPrefetch('topicQuizzer');
                             toggleUI();
-                            const qData = await getQuestion();
+                            const qData = await getQuestion(true);
                             start_question_setup(qData);
                         }}
                     >
@@ -966,6 +1067,7 @@ const ENGR102TopicQuizzer = () => {
                             <>
                                 <strong>{QUESTION_TYPE_LABELS[currentQuestion[3]?.type] || ""}: </strong>
                                 {renderFormattedText(currentQuestion[3].question)}
+                                {currentQuestion[3]?.type === "multiple_answer" && " (select all that apply)"}
                             </>
                         ) : (
                             "Loading question..."
@@ -1142,6 +1244,18 @@ const ENGR102TopicQuizzer = () => {
                             }
                     </button>
 
+                    {/* Show Answer button for short answer and multiple answer */}
+                    {(currentQuestion[3]?.type === 'short_answer' || currentQuestion[3]?.type === 'multiple_answer') && (
+                        <button
+                            id='show-answer'
+                            className='toggle-all-btn'
+                            style={{ margin: "10px auto", display: "block" }}
+                            onClick={handleShowAnswer}
+                        >
+                            Show Answer
+                        </button>
+                    )}
+
 
                     <button id='next-question' className='quiz-start-btn' 
                         hidden={true}
@@ -1155,6 +1269,8 @@ const ENGR102TopicQuizzer = () => {
                             if (nextBtn) nextBtn.hidden = true;
                             const sub = document.getElementById('submit');
                             if (sub) sub.hidden = false;
+                            const showAns = document.getElementById('show-answer');
+                            if (showAns) showAns.hidden = true;
                             const exp = document.getElementById('explanation');
                             if (exp) exp.hidden = true;
                             const qData = await getQuestion();

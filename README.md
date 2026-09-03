@@ -42,8 +42,8 @@ An AI-powered, RAG-based study tool built for Texas A&M ENGR 102 students. Gener
 | **Python Engine** | Pyodide (WebAssembly + Web Workers) |
 | **Backend** | Node.js, Express |
 | **Database** | PostgreSQL (NeonDB) with `pgvector` extension |
-| **AI / LLM** | OpenRouter API (DeepSeek / Gemini / GPT-4o-mini) |
-| **Embeddings** | Custom embedding pipeline (`backend/llm/embed.js`, `nvidia/nemotron-3-embed-1b`) |
+| **AI / LLM** | OpenRouter API (DeepSeek V4 Flash) |
+| **Embeddings** | Custom embedding pipeline (`backend/llm/embed.js`, `openai/text-embedding-3-small`) |
 | **Auth** | Better Auth (`@tamu.edu` restricted + Demo Token bypass) |
 | **Deployment** | Render |
 
@@ -138,7 +138,7 @@ DB_NAME=your_db_name
 DB_USER=your_db_user
 DB_PASSWORD=your_db_password
 OPENROUTER_API_KEY=your_openrouter_key
-OPENROUTER_QUESTION_MODEL=deepseek/deepseek-v4-flash-0731
+OPENROUTER_QUESTION_MODEL=openai/gpt-4o-mini
 OPENROUTER_CHECK_MODEL=openai/gpt-4o-mini
 ```
 

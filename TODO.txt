@@ -15,7 +15,8 @@ TODO:
 
     • [x] turn this project into an RAG-based system!
     • [x] for code_writing, make sure the user doesn't spam submit
-    • change API to TAMU AI API
+    • explain this question to me
+    • new UI for entire website
 
 IDEAS:
     • [x] create a way for users to choose their preferred question types
@@ -29,4 +30,4 @@ IDEAS:
         • allow users to see their statistics
         • allow users to see their favorite topics
         • allow users to see their weakest topics
-    • new UI for entire website
+    • change API to TAMU AI API?

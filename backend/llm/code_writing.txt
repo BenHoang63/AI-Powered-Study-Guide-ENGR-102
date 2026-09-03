@@ -1,6 +1,13 @@
-Generate a free response question where the student needs to write a piece of python code that can be executed and satisfies the given requirements.
+Generate a code writing question where the student writes Python code to solve a specific problem.
+CRITICAL RULES FOR CODE WRITING:
+1. STRICT KNOWLEDGE SCOPING: The question and expected solution MUST stay strictly within the student's current chapter and prerequisites.
+   - Before Chapter 7: NEVER ask students to work with lists, list indexing, nested lists, 2D grids, or matrices. All loops must iterate over numbers using range() or characters in strings!
+   - Before Chapter 9: Do NOT ask students to define functions ('def'). Students must write standalone scripts.
+2. CLEAR SPECIFICATIONS: Provide exact input requirements, expected printed outputs, and sample test cases so the student knows exactly what their code should output.
+3. REASONABLE SCOPE: The problem should be solvable in 10-20 lines of clean, readable Python code.
+
 Respond with the following JSON format:
 {
   "type": "code_writing",
-  "question": "the question text here"
+  "question": "the detailed question prompt, including requirements and example input/output"
 }

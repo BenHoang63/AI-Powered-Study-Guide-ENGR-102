@@ -1,7 +1,20 @@
-Generate a multiple-choice question with up to 4 options (A, B, C, D). True or false questions are allowed. Respond with this exact JSON format:
+Generate a multiple-choice question with up to 4 options (A, B, C, D). True or false questions are allowed.
+CRITICAL RULES FOR MULTIPLE CHOICE:
+1. SINGLE CORRECT ANSWER INVARIANT: Exactly ONE option must be correct. The other 3 options MUST be definitively and unambiguously incorrect (e.g. syntax errors, wrong outputs, or invalid types).
+   - For comparisons/relational operators: Prefer asking for the evaluation (e.g. "Which of the following expressions evaluates to `True`?" or "What is the boolean output of `...`?") so that exactly 1 option is True and the others are False or SyntaxErrors.
+   - DO NOT ask vague questions like "Which statement is a valid comparison?" because multiple comparisons (like `5 == 5` and `15 > 10`) are syntactically valid.
+   - NEVER generate a question where multiple options are valid or plausible.
+   - NEVER rationalize an answer in the explanation by claiming an option is "most appropriate", "evaluated to True", "better", or "the first valid option" while other options are also valid.
+   - If asking to identify a valid syntax or operator, exactly THREE options must contain clear syntax errors or invalid operations, and only ONE option can be valid.
+2. AVOID NEGATIVE PHRASING: Avoid negative stems like "Which of the following will NOT..." or "All of the following EXCEPT...". Ask positive, direct questions (e.g. prefer "Which of the following statements will raise a runtime error?" over "Which statement will NOT raise an error?").
+3. PYTHON TYPE INTEGRITY: When asking for the output of expressions, distinguish integers and floats accurately. In Python, division (/) and operations involving floats or fractional powers (e.g. 16 ** (1/2)) yield floats. Printed floats must include .0 (e.g. 4.0 vs 4). Use the integer representation (e.g. 4) as an incorrect distractor.
+4. In "step_by_step_solution", evaluate each option (A, B, C, D) to verify that exactly 1 option is correct and the other 3 are false.
+
+Respond with this exact JSON format:
 {
   "type": "multiple_choice",
   "question": "the question text here",
+  "step_by_step_solution": "evaluate each option step-by-step and verify that exactly ONE option is correct",
   "options": {
     "A": "first option",
     "B": "second option",
@@ -9,5 +22,5 @@ Generate a multiple-choice question with up to 4 options (A, B, C, D). True or f
     "D": "fourth option"
   },
   "correct_answer": "A",
-  "explanation": "brief explanation of why the answer is correct"
+  "explanation": "concise explanation of why the correct answer is right and why the distractors are wrong"
 }

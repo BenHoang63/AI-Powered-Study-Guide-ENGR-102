@@ -3,6 +3,17 @@ import { createContext, useContext, useRef } from 'react';
 const QuizFetchContext = createContext();
 
 /**
+ * Cryptographically secure random integer generator [0, max - 1].
+ * Uses crypto.getRandomValues for uniform hardware/OS entropy.
+ */
+const getSecureRandomInt = (max) => {
+    if (max <= 1) return 0;
+    const buf = new Uint32Array(1);
+    globalThis.crypto.getRandomValues(buf);
+    return buf[0] % max;
+};
+
+/**
  * QuizFetchProvider — lives at the app root so background fetches
  * survive React-Router page navigation.
  *
@@ -16,29 +27,69 @@ export const QuizFetchProvider = ({ children }) => {
 
     const topicCountsCache = useRef({});
 
+    // Shuffled decks of question types per channel (Fisher-Yates via crypto.getRandomValues)
+    const typeDecks = useRef({});
+
     /**
-     * Pure fetch helper.  Returns question array or null.
+     * Draws the next question type from a cryptographically shuffled deck.
+     * Guarantees every selected type is dealt before repeating, with no back-to-back repeats.
+     */
+    const getNextQuestionType = (types, channel = 'default') => {
+        if (!types || types.length === 0) return 'multiple_choice';
+        if (types.length === 1) return types[0];
+
+        const typesKey = [...types].sort().join(',');
+        let deckState = typeDecks.current[channel];
+
+        // If deck is missing, invalidated by type changes, or exhausted, create & shuffle a new one
+        if (!deckState || deckState.typesKey !== typesKey || deckState.cards.length === 0) {
+            const newCards = [...types];
+            // Cryptographically secure Fisher-Yates shuffle
+            for (let i = newCards.length - 1; i > 0; i--) {
+                const j = getSecureRandomInt(i + 1);
+                [newCards[i], newCards[j]] = [newCards[j], newCards[i]];
+            }
+            // Prevent the first card from matching the last card dealt from the previous deck
+            if (deckState?.lastPopped && newCards[newCards.length - 1] === deckState.lastPopped && newCards.length > 1) {
+                [newCards[0], newCards[newCards.length - 1]] = [newCards[newCards.length - 1], newCards[0]];
+            }
+            deckState = {
+                cards: newCards,
+                typesKey,
+                lastPopped: deckState?.lastPopped || null,
+            };
+        }
+
+        const nextType = deckState.cards.pop();
+        deckState.lastPopped = nextType;
+        typeDecks.current[channel] = deckState;
+        return nextType;
+    };
+
+    /**
+     * Pure fetch helper. Returns question array or null.
      *
      * @param {Object}   config
      * @param {number[]} config.chapters    – pool of chapter ids to pick from
      * @param {string[]} config.types       – pool of question type keys
      * @param {number}   [config.extraSlots] – array length (TopicQuizzer = 8, Exam = 5)
+     * @param {string}   [config.channel]   – prefetch channel identifier
      */
-    const fetchQuestionData = async ({ chapters, types, extraSlots = 5 }) => {
-        const ch = chapters[Math.floor(Math.random() * chapters.length)];
-        const questionType = types[Math.floor(Math.random() * types.length)];
+    const fetchQuestionData = async ({ chapters, types, extraSlots = 5, channel = 'default' }) => {
+        const ch = chapters[getSecureRandomInt(chapters.length)];
+        const questionType = getNextQuestionType(types, channel);
 
         let tp = 1;
         // Check in-memory cache for topic count to avoid duplicate round-trips
         if (topicCountsCache.current[ch]) {
-            tp = Math.ceil(Math.random() * topicCountsCache.current[ch]) || 1;
+            tp = getSecureRandomInt(topicCountsCache.current[ch]) + 1;
         } else {
             try {
                 const res = await fetch(`/api/engr102/${ch}/num_topics`);
                 if (res.ok) {
                     const data = await res.json();
                     topicCountsCache.current[ch] = data.topicCount || 5;
-                    tp = Math.ceil(Math.random() * topicCountsCache.current[ch]) || 1;
+                    tp = getSecureRandomInt(topicCountsCache.current[ch]) + 1;
                 }
             } catch (err) {
                 console.error('[QuizFetchContext] Could not get topic count, using fallback:', err);
@@ -73,7 +124,7 @@ export const QuizFetchProvider = ({ children }) => {
         const slot = prefetchMap.current[channel];
         if (slot && (slot.promise || slot.data)) return; // already in-flight or ready
 
-        const promise = fetchQuestionData(config);
+        const promise = fetchQuestionData({ ...config, channel });
         const entry = { promise, resolved: false, data: null };
         prefetchMap.current[channel] = entry;
 
@@ -119,8 +170,16 @@ export const QuizFetchProvider = ({ children }) => {
         return result;
     };
 
+    /**
+     * Clear / invalidate any prefetch for the given channel.
+     */
+    const clearPrefetch = (channel) => {
+        prefetchMap.current[channel] = null;
+        typeDecks.current[channel] = null;
+    };
+
     return (
-        <QuizFetchContext.Provider value={{ fetchQuestionData, prefetch, consumePrefetch, isPrefetchReady }}>
+        <QuizFetchContext.Provider value={{ fetchQuestionData, prefetch, consumePrefetch, clearPrefetch, isPrefetchReady }}>
             {children}
         </QuizFetchContext.Provider>
     );

@@ -130,7 +130,7 @@ const ENGR102Mod1 = () => {
                             <ul>
                                 <li>Any operation involving a float will always result in a float.</li>
                                 <li>Division will always result in a float.</li>
-                                <li>Floor division of two integers will result in an integer.</li>
+                                <li>Floor division of two integers will result in an integer, otherwise it will result in a float.</li>
                                 <li>Modulus with two integers will result in an integer, otherwise it will result in a float.</li>
                             </ul>
                             <div className="code">

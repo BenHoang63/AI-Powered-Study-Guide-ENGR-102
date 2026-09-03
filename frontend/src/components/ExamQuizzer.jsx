@@ -3,13 +3,44 @@ import { useQuizFetch } from '../context/QuizFetchContext.jsx';
 import '../styles/topic_quizzer.css';
 import '../styles/exam_quizzer.css';
 
+const parseInlineBold = (text) => {
+    // Matches Markdown bold: must open after start/whitespace/punctuation, contain non-whitespace, and close before end/whitespace/punctuation.
+    // This strictly prevents Python exponent operators like **2, 5 ** (1/2), or x ** y from being falsely parsed as bold.
+    const boldRegex = /(^|[\s.,;:!?()])\*\*([^\s*](?:[^*]*?[^\s*])?)\*\*(?=[\s.,;:!?()]|$)/g;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = boldRegex.exec(text)) !== null) {
+        const matchStart = match.index;
+        const prefix = match[1];
+        const boldText = match[2];
+        const matchEnd = boldRegex.lastIndex;
+
+        if (matchStart > lastIndex) {
+            parts.push({ type: 'text', content: text.substring(lastIndex, matchStart) });
+        }
+        if (prefix) {
+            parts.push({ type: 'text', content: prefix });
+        }
+        parts.push({ type: 'bold', content: boldText });
+
+        lastIndex = matchEnd;
+    }
+
+    if (lastIndex < text.length) {
+        parts.push({ type: 'text', content: text.substring(lastIndex) });
+    }
+
+    return parts;
+};
+
 // ===================== MARKDOWN RENDERER ===================== //
 const renderFormattedText = (text) => {
     if (!text || typeof text !== 'string') return text;
 
     const normalizedText = text
         .replace(/\\`/g, '`')
-        .replace(/\\n/g, '\n')
         .replace(/[\u2018\u2019\u00b4\u02cb\u02cf]/g, '`');
 
     const blockParts = normalizedText.split(/```/g);
@@ -32,13 +63,14 @@ const renderFormattedText = (text) => {
                     if (inlineIdx % 2 === 1) {
                         return <code key={`inline-${inlineIdx}`} className="inline-code">{inlineChunk}</code>;
                     }
-                    const boldParts = inlineChunk.split(/\*\*/g);
-                    return boldParts.map((boldChunk, boldIdx) => {
-                        if (boldIdx % 2 === 1) {
-                            return <strong key={`bold-${boldIdx}`}>{boldChunk}</strong>;
+                    // Handle **bold** markdown within plain text without breaking Python exponents (**2, 5 ** 2)
+                    const parts = parseInlineBold(inlineChunk);
+                    return parts.map((part, partIdx) => {
+                        if (part.type === 'bold') {
+                            return <strong key={`bold-${inlineIdx}-${partIdx}`}>{part.content}</strong>;
                         }
-                        return boldChunk.split('\n').map((line, lineIdx, arr) => (
-                            <span key={`line-${lineIdx}`}>
+                        return part.content.split('\n').map((line, lineIdx, arr) => (
+                            <span key={`line-${inlineIdx}-${partIdx}-${lineIdx}`}>
                                 {line}
                                 {lineIdx < arr.length - 1 && <br />}
                             </span>

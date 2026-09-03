@@ -1,9 +1,10 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-const QUESTION_MODEL = process.env.OPENROUTER_QUESTION_MODEL || "openrouter/free";
-const CHECK_MODEL    = process.env.OPENROUTER_CHECK_MODEL    || "openrouter/free";
-console.log(`[Models] Question: ${QUESTION_MODEL} | Check: ${CHECK_MODEL}`);
+const QUESTION_MODEL   = process.env.OPENROUTER_QUESTION_MODEL || "deepseek/deepseek-v4-flash-0731";
+const CHECK_MODEL      = process.env.OPENROUTER_CHECK_MODEL    || "deepseek/deepseek-v4-flash-0731";
+const REASONING_EFFORT = process.env.OPENROUTER_REASONING_EFFORT || "low";
+console.log(`[Models] Question: ${QUESTION_MODEL} | Check: ${CHECK_MODEL} | Reasoning: ${REASONING_EFFORT}`);
 
 import express from "express";
 import pg from "pg";
@@ -193,28 +194,47 @@ app.post("/api/engr102/quiz/question", async (req, res) => {
 			other_instruction = rows.map(r => r.other_instruction).filter(Boolean).join(" ");
 		} else {
 			// ── Vector RAG Retrieval via pgvector ──
-			const chapterDesc = TOPIC_MAP[String(chapter)] || `Chapter ${chapter}`;
-			const queryText = topic
-				? `Chapter ${chapter}, topic ${topic}: ${chapterDesc}`
-				: `Chapter ${chapter}: ${chapterDesc}`;
+			const chTopics = topicsMap?.get(chNum) || [];
+			const requestedTopic = chTopics.find(t => Number(t.topic) === topic_number) 
+				|| chTopics[0];
 
-			const queryVector = await embedQuery(queryText);
-			const vectorString = JSON.stringify(queryVector);
+			let question_topic = null;
 
-			const result = await pool.query(
-				`SELECT topic, topic_name, context, question, other_instruction,
-				        1 - (embedding <=> $1::vector) AS similarity
-				 FROM engr102topics
-				 WHERE chapter = $2
-				 ORDER BY embedding <=> $1::vector
-				 LIMIT 1`,
-				[vectorString, chNum]
-			);
+			try {
+				const queryText = requestedTopic
+					? `Topic ${topic_number}: ${requestedTopic.topic_name}. ${requestedTopic.context.slice(0, 100)}`
+					: `Chapter ${chapter}: ${TOPIC_MAP[String(chapter)] || ""}`;
 
-			if (result.rows.length === 0) {
+				const queryVector = await embedQuery(queryText);
+				const vectorString = JSON.stringify(queryVector);
+
+				// Filter by requested topic if specified so all topics (2.1, 2.2, 2.3...) get traversed,
+				// while maintaining pgvector cosine distance calculation
+				const result = await pool.query(
+					`SELECT topic, topic_name, context, question, other_instruction,
+					        1 - (embedding <=> $1::vector) AS similarity
+					 FROM engr102topics
+					 WHERE chapter = $2 ${topic ? "AND topic = $3" : ""}
+					 ORDER BY embedding <=> $1::vector
+					 LIMIT 1`,
+					topic ? [vectorString, chNum, topic_number] : [vectorString, chNum]
+				);
+
+				if (result.rows.length > 0) {
+					question_topic = result.rows[0];
+				}
+			} catch (ragErr) {
+				console.warn("[RAG] Vector retrieval fallback to cached topic:", ragErr.message);
+			}
+
+			// Graceful fallback to cached topic if embedding API is rate-limited or fails
+			if (!question_topic) {
+				question_topic = requestedTopic;
+			}
+
+			if (!question_topic) {
 				return res.status(404).json({ error: "Topic not found" });
 			}
-			const question_topic = result.rows[0];
 
 			topic_number = question_topic.topic || topic_number;
 			topic_name = question_topic.topic_name;
@@ -252,61 +272,79 @@ app.post("/api/engr102/quiz/question", async (req, res) => {
 
 	let restrictionNotice = "";
 	if (futureTopics.length > 0) {
-		restrictionNotice += `STRICT KNOWLEDGE SCOPE CONSTRAINT:
-The student has ONLY learned topics up to Chapter ${effectiveChapter} (${topic_name}). 
-DO NOT use, require, or reference concepts, syntax, or data structures from future topics:
-${futureTopics.map(t => `- ${t}`).join("\n")}
-The question and solution code MUST ONLY rely on concepts introduced up to Chapter ${effectiveChapter}.`;
+		const bannedNames = futureTopics.map(t => t.split(" (")[0]).join(", ");
+		restrictionNotice += `\n5. PREREQUISITES: The student has ONLY learned up to Chapter ${effectiveChapter} (${topic_name}). Do NOT use syntax or concepts from later topics (${bannedNames}). All code must stay strictly within Chapter ${effectiveChapter}.`;
 	}
-
+	if (effectiveChapter < 7) {
+		restrictionNotice += `\n   - NO LISTS OR MATRICES: Lists, nested lists, 2D grids, matrices, and list indexing are NOT taught until Chapter 7. All loops must iterate over numbers using range() or characters in strings, NEVER lists or matrices!`;
+	}
+	if (effectiveChapter < 8) {
+		restrictionNotice += `\n   - NO DICTIONARIES: Dictionaries and sets are NOT taught until Chapter 8.`;
+	}
 	if (effectiveChapter < 9) {
-		restrictionNotice += `\n\nCRITICAL FUNCTION CREATION RESTRICTION:
-The student HAS NOT learned user-defined functions yet (which is taught in Chapter 9). 
-DO NOT ask the student to write, create, or define a function (DO NOT use 'def', function parameters, or 'return'). 
-Instead, ask the student to write a standalone Python script or code snippet using standard statements/variables/inputs directly.`;
+		restrictionNotice += `\n   - NO USER-DEFINED FUNCTIONS: Functions ('def', parameters, 'return') are not taught until Chapter 9—use only standalone script code.`;
+	}
+	if (effectiveChapter < 10) {
+		restrictionNotice += `\n   - NO EXCEPTION HANDLING: 'try'/'except' blocks are not taught until Chapter 10.`;
+	}
+	if (effectiveChapter < 11) {
+		restrictionNotice += `\n   - NO FILE I/O: File reading/writing ('open()', CSVs) is not taught until Chapter 11.`;
 	}
 
 	let examNotice = "";
 	if (Number(chapter) >= 13) {
-		examNotice = `\n\nEXAM QUESTION GENERATION GUIDELINES:
-1. CREATIVE & REAL-WORLD SCENARIO: Create an engaging, logical word problem set in a practical real-world or engineering context (e.g., sensor data processing, budgeting, scientific calculations, inventory tracking, grade calculation).
-2. DO NOT REUSE SAMPLE QUESTIONS: The provided sample questions are ONLY reference examples for difficulty level and topics. DO NOT copy, paraphrase, or reuse any part of the wording, scenarios, variable names, or numbers from the sample questions. You may copy rules (e.g., print a float to 2 decimals, do not use for loops, etc.)
-3. LOGICAL & CLEAR REQUIREMENTS: Clearly state all input requirements, formula details, and expected outputs so the student understands exactly what code to write.
-4. QUESTION LENGTH: Make sure the question does not take too long to answer (around 1-2 minutes). Do not ask the student to write a very long code and do not guide the student with code hints.
-5. SPECIAL CASES: Check for special cases, and if there are any edge cases, make sure to include them in the question.`;
+		examNotice = `\n6. EXAM GUIDELINES: Create a practical engineering or real-world problem (sensor data, calculations). Clearly state input requirements, formulas, and expected outputs. Do NOT copy sample question scenarios or variable names. Keep scope answerable in 1-2 minutes.`;
 	}
 
-	const systemPrompt = `You are a quiz question generator for a university-level introductory Python programming course. 
-Generate exactly ONE question at a time. Context and sample reference questions are provided.
-IMPORTANT: Respond with ONLY valid raw JSON object. Do not wrap the JSON response in top-level code fences.
+	const systemPrompt = `You are a quiz question generator for an introductory college Python course. Generate exactly ONE question at a time.
+Respond with ONLY a valid raw JSON object matching the requested schema. Do not wrap the JSON response in top-level code fences.
 
-MANDATORY FORMATTING RULES — you MUST follow these exactly:
-1. ANY variable name, function call, operator, keyword, or short expression that appears inline within text MUST be wrapped in single backticks. Example: use \`x\`, \`int()\`, \`print("Hello")\`, \`in\`, \`==\` — NEVER write them bare in the text.
-2. ANY block of code (2 or more lines, or a complete script/snippet) MUST be placed in a triple-backtick code block on its own line. Example:
-   \`\`\`python
-   x = 5
-   print(x)
-   \`\`\`
-   Do NOT write multi-line code inline without backticks.
-3. When the question or explanation naturally involves a newline (e.g. listing steps, output lines, or code), use actual \\n characters in the JSON string — do NOT write everything as one long run-on sentence.
-4. For **bold** emphasis on key terms, use double asterisks: **term**.
-5. These rules apply to ALL fields: 'question', 'options', 'explanation', 'correct_answers'.
+CORE RULES:
+1. FORMATTING: Wrap all inline code/variables/operators/mathematical expressions in single \`backticks\` (e.g. \`x\`, \`print()\`, \`==\`, \`(3 + 7) * 2 - 5 ** 2 / 5\`). Wrap multi-line code in triple-backtick \`\`\`python blocks. Use actual \\n in JSON strings for newlines. For bold emphasis on key terms, use double asterisks: **term**. Never leave mathematical expressions with exponents unwrapped.
+2. VERIFY ARITHMETIC & PYTHON TYPES FIRST: In "step_by_step_solution", trace code line-by-line and compute exact results FIRST before setting options or answers. Double-check all arithmetic and operations (e.g. 5 + 2 = 7, not 12; 10 // 3 = 3; "ab" * 2 = "abab").
+   - PYTHON TYPE INTEGRITY: Division (/) and operations with floats or fractional powers (e.g. 1/2 = 0.5, so 16 ** (1/2) or 16 ** 0.5) ALWAYS produce a float. Printed output for floats MUST include the decimal point (e.g. 4.0, NOT 4; 16 / 4 is 4.0, NOT 4; 2 ** -1 is 0.5). Floor division (//) between ints produces an int (e.g. 16 // 4 is 4). Never omit or strip the decimal .0 from float outputs.
+3. SINGLE-ANSWER INVARIANT: For multiple_choice, exactly ONE option must be correct; all 3 distractors MUST be unambiguously false or invalid.
+   - For comparisons/relational operators: Prefer asking for the evaluation (e.g. "Which of the following expressions evaluates to \`True\`?" or "What is the boolean output of \`...\`?") so that exactly 1 option is True and the others are False or SyntaxErrors.
+   - DO NOT ask vague questions like "Which statement is a valid comparison?" because multiple comparisons (like \`5 == 5\` and \`15 > 10\`) are syntactically valid.
+   - NEVER generate a multiple_choice question where multiple options are valid or plausible.
+   - NEVER rationalize an answer by claiming an option is "most appropriate", "evaluated to True", "better", or "the first valid option" while other options are also valid.
+   - If asking to identify a valid syntax or operator, exactly THREE options must contain clear syntax errors or invalid operations, and only ONE option can be valid.
+4. AVOID NEGATIVE PHRASING: Ask direct, positive questions (e.g. prefer "Which statement raises a ValueError?" over "Which statement will NOT raise an error?").
+5. SHORT ANSWER INTEGRITY: Answers MUST be a single, deterministic value (exact code output, True/False, Yes/No, keyword, or number).
+   - NEVER ask open-ended questions like "What is a valid...?", "Name a...", or "Give an example of..." because student answers are graded with exact string matching. For rules or concepts (like variable names or syntax), ask True/False, Yes/No, or whether a specific name/statement is valid (e.g. "True or False: Can a variable name start with a digit?").
+   - LOOPS IN SHORT ANSWER: NEVER ask "What is the output of the code?" for a loop that prints multiple lines (e.g. \`for i in range(5): print(i)\`), because multi-line outputs cannot be unambiguously typed into a single text box. Instead, ask:
+     * "What is the final value printed by the loop?" (e.g. \`4\`)
+     * "What is the first value printed by the loop?" (e.g. \`0\`)
+     * "How many times does the loop execute?" (e.g. \`5\`)
+     * "What is the value of variable X after the loop?" (accumulator pattern)
+   - "correct_answers" MUST contain synonyms of the SAME single value (e.g. ["4.0", "4"], ["True", "true"]). NEVER populate "correct_answers" with distinct values from different loop iterations (like ["0", "1", "2", "3", "4"]).
+6. MULTIPLE ANSWER INTEGRITY:
+   - For "Which of the following are True?" questions, ONLY mark an option as correct if the statement itself is factually and syntactically TRUE in Python.
+   - If an option describes an action that is illegal or causes an error (e.g. "break can be used outside a loop"), that statement is FALSE! NEVER mark an illegal or error-causing action as a "true statement" (e.g. NEVER say "Option D is correct because using break outside a loop raises a SyntaxError").
+   - In "step_by_step_solution", evaluate each option (A, B, C, D) individually as True or False FIRST before setting "correct_answers".
+   - Avoid compound ambiguous requirements like "validate for math.sqrt() and math.log()". State "for BOTH function X and function Y", or focus on a single function.${restrictionNotice}${examNotice}
 
 ${questionPrompt}
-
-${restrictionNotice}
-${examNotice}
 `;
+
+	let effectiveOtherInstruction = other_instruction || "";
+	if (type !== "multiple_answer") {
+		// Strip any "Select all" instructions when generating single-choice, short-answer, or code questions
+		effectiveOtherInstruction = effectiveOtherInstruction
+			.replace(/\b(select|choose)\s+all\b[^.]*\.?/gi, "")
+			.trim();
+	}
 
 	const userPrompt = `Generate a ${type} question about topic ${topic_name}: ${context}.
 
 Sample reference questions (DO NOT REUSE ANY PARTS OF THESE):
 ${sample}
 
-Other instructions: ${other_instruction}
+Other instructions: ${effectiveOtherInstruction || "N/A"}
 `;
 
 	for (let i = 0; i < 3; i++) {
+		const currentModel = i === 0 ? QUESTION_MODEL : (process.env.OPENROUTER_CHECK_MODEL || "deepseek/deepseek-v4-flash-0731");
 		try {
 			const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
 				method: "POST",
@@ -317,15 +355,15 @@ Other instructions: ${other_instruction}
 					"X-Title": "ENGR 102 Study Guide"
 				},
 				body: JSON.stringify({
-					model: QUESTION_MODEL,
+					model: currentModel,
 					messages: [
 						{ role: "system", content: systemPrompt },
 						{ role: "user",   content: userPrompt }
 					],
 					temperature: 0.7,
 					response_format: { type: "json_object" },
-					reasoning: { effort: "none" },
-					max_tokens: 1000
+					reasoning: { effort: REASONING_EFFORT, exclude: true },
+					max_tokens: 1500
 				})
 			});
 
@@ -359,6 +397,116 @@ Other instructions: ${other_instruction}
 
 			const jsonString = rawContent.slice(firstBrace, lastBrace + 1);
 			const question = JSON.parse(jsonString);
+
+			// ── Post-processing: Resolve option letter mismatches & enforce consistency ──
+			if (question.type === "multiple_choice" && question.options && typeof question.options === "object") {
+				const optEntries = Object.entries(question.options);
+
+				// 1. If correct_answer was given as the literal value instead of a letter (e.g. "5" instead of "A"), map it
+				const directMatch = optEntries.find(([k, v]) => String(v).trim().toLowerCase() === String(question.correct_answer).trim().toLowerCase());
+				if (directMatch && !question.options[question.correct_answer]) {
+					question.correct_answer = directMatch[0];
+				}
+
+				// 2. If explanation explicitly states the correct value (e.g. "correct answer is 3.0" or "results in 4.0") but correct_answer points to another option, auto-correct it
+				if (question.explanation) {
+					const currentSelectedVal = String(question.options[question.correct_answer] || "").trim();
+					const match = question.explanation.match(/(?:correct answer is|answer is|results in|output is)\s*`?([a-zA-Z0-9_.-]+)`?/i);
+					if (match) {
+						const explainedVal = match[1].trim().replace(/\.$/, "");
+						if (explainedVal !== currentSelectedVal) {
+							const betterMatch = optEntries.find(([k, v]) => String(v).trim().toLowerCase() === explainedVal.toLowerCase());
+							if (betterMatch) {
+								console.log(`[Auto-Correct] Reconciled option letter from "${question.correct_answer}" (${currentSelectedVal}) to "${betterMatch[0]}" (${betterMatch[1]}) based on explanation.`);
+								question.correct_answer = betterMatch[0];
+							}
+						}
+					}
+
+					// Contradiction check: if explanation literally says the currently selected option is incorrect, discard and retry
+					const contradictionRegex = new RegExp(`Option\\s+${question.correct_answer}\\b[^.]*\\bis incorrect\\b`, "i");
+					if (contradictionRegex.test(question.explanation)) {
+						console.warn(`[Validation] Explanation states selected option "${question.correct_answer}" is incorrect! Discarding contradictory question.`);
+						continue;
+					}
+				}
+
+				// 3. Multi-answer detection: if explanation or solution admits multiple options are correct, reject and retry
+				const multipleValidRegex = /\b(options?\s+[A-D](?:\s*,\s*[A-D])*\s*(?:and|&|,)\s*[A-D]|both\s+[A-D]\s+and\s+[A-D]|all\s+of\s+the\s+above|first valid|not the only|is also valid|is also correct|also valid|also a valid|more than one|multiple correct|multiple valid|conflicts with the requirement|most appropriate|first correct|neither.*nor.*both|also a correct|valid but not the only)\b/i;
+				const solutionStr = typeof question.step_by_step_solution === "string" 
+					? question.step_by_step_solution 
+					: JSON.stringify(question.step_by_step_solution || "");
+				if (multipleValidRegex.test(question.explanation || "") || multipleValidRegex.test(solutionStr)) {
+					console.warn(`[Validation] Discarding multiple_choice question with multiple valid options: "${question.question?.slice(0, 60)}..."`);
+					continue;
+				}
+			}
+
+			if (question.type === "short_answer") {
+				const openEndedRegex = /\b(what is a valid|give an example|name a valid|write a valid|provide an example|give a valid|name an example)\b/i;
+				if (openEndedRegex.test(question.question || "")) {
+					console.warn(`[Validation] Discarding open-ended short_answer question: "${question.question}"`);
+					continue;
+				}
+
+				// Reject loop questions asking for multi-line output without asking for a single qualifier
+				const qText = question.question || "";
+				const multiLineLoopOutputRegex = /\bwhat is the (?:exact )?output\b/i;
+				const loopSnippetRegex = /\b(for|while)\b[\s\S]*?\bprint\s*\(/i;
+				const hasQualifierRegex = /\b(final|last|first|sum|total|how many)\b/i;
+				if (multiLineLoopOutputRegex.test(qText) && loopSnippetRegex.test(qText) && !hasQualifierRegex.test(qText)) {
+					console.warn(`[Validation] Discarding short_answer question asking for multi-line loop output: "${qText.slice(0, 60)}..."`);
+					continue;
+				}
+
+				// Reject if correct_answers contains distinct non-equal numbers (different loop outputs instead of synonyms)
+				const answers = Array.isArray(question.correct_answers) ? question.correct_answers : [];
+				const numericVals = answers.map(a => Number(String(a).trim())).filter(n => !isNaN(n));
+				if (numericVals.length >= 2) {
+					const distinctInts = new Set(numericVals.map(n => Math.round(n)));
+					if (distinctInts.size > 1) {
+						console.warn(`[Validation] Discarding short_answer question with non-synonym answer list: ${JSON.stringify(answers)}`);
+						continue;
+					}
+				}
+			}
+
+			if (question.type === "multiple_answer") {
+				const qText = question.question || "";
+				const correctList = Array.isArray(question.correct_answers) ? question.correct_answers : [];
+				const expl = question.explanation || "";
+				const isErrorQuestion = /\b(raise(s)?|error|invalid|syntaxerror|exception|fails?|false)\b/i.test(qText);
+
+				// Contradiction check: if question asks for true/valid statements, but explanation says a selected option causes error / is invalid / is false / is incorrect
+				let hasContradiction = false;
+				for (const optKey of correctList) {
+					const contradictionRegex = new RegExp(`Option\\s+${optKey}\\b[^.]*\\b(is incorrect|is false|is invalid|causes an error|raises a SyntaxError|raises an error|is a SyntaxError)\\b`, "i");
+					if (!isErrorQuestion && contradictionRegex.test(expl)) {
+						console.warn(`[Validation] Discarding multiple_answer question where marked correct option "${optKey}" is contradicted in explanation: "${expl.slice(0, 120)}..."`);
+						hasContradiction = true;
+						break;
+					}
+				}
+				if (hasContradiction) {
+					continue;
+				}
+			}
+
+			// ── Prerequisite guard: prevent future topic concepts from leaking into earlier chapters ──
+			if (effectiveChapter < 7) {
+				const prematureListRegex = /\b(list of lists|2d grid|two-dimensional (?:grid|list|array)|matrix|matrices|nested list|nested lists)\b/i;
+				if (prematureListRegex.test(question.question || "")) {
+					console.warn(`[Validation] Discarding question using lists/matrices prior to Chapter 7: "${question.question?.slice(0, 70)}..."`);
+					continue;
+				}
+			}
+			if (effectiveChapter < 9) {
+				const prematureDefRegex = /\b(write a function|define a function|def\s+[a-zA-Z_])/i;
+				if (prematureDefRegex.test(question.question || "")) {
+					console.warn(`[Validation] Discarding question asking for function definition prior to Chapter 9: "${question.question?.slice(0, 70)}..."`);
+					continue;
+				}
+			}
 
 			return res.json({
 				"topic_number": topic_number,
