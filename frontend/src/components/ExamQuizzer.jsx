@@ -3,13 +3,44 @@ import { useQuizFetch } from '../context/QuizFetchContext.jsx';
 import '../styles/topic_quizzer.css';
 import '../styles/exam_quizzer.css';
 
+const parseInlineBold = (text) => {
+    // Matches Markdown bold: must open after start/whitespace/punctuation, contain non-whitespace, and close before end/whitespace/punctuation.
+    // This strictly prevents Python exponent operators like **2, 5 ** (1/2), or x ** y from being falsely parsed as bold.
+    const boldRegex = /(^|[\s.,;:!?()])\*\*([^\s*](?:[^*]*?[^\s*])?)\*\*(?=[\s.,;:!?()]|$)/g;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = boldRegex.exec(text)) !== null) {
+        const matchStart = match.index;
+        const prefix = match[1];
+        const boldText = match[2];
+        const matchEnd = boldRegex.lastIndex;
+
+        if (matchStart > lastIndex) {
+            parts.push({ type: 'text', content: text.substring(lastIndex, matchStart) });
+        }
+        if (prefix) {
+            parts.push({ type: 'text', content: prefix });
+        }
+        parts.push({ type: 'bold', content: boldText });
+
+        lastIndex = matchEnd;
+    }
+
+    if (lastIndex < text.length) {
+        parts.push({ type: 'text', content: text.substring(lastIndex) });
+    }
+
+    return parts;
+};
+
 // ===================== MARKDOWN RENDERER ===================== //
 const renderFormattedText = (text) => {
     if (!text || typeof text !== 'string') return text;
 
     const normalizedText = text
         .replace(/\\`/g, '`')
-        .replace(/\\n/g, '\n')
         .replace(/[\u2018\u2019\u00b4\u02cb\u02cf]/g, '`');
 
     const blockParts = normalizedText.split(/```/g);
@@ -32,13 +63,14 @@ const renderFormattedText = (text) => {
                     if (inlineIdx % 2 === 1) {
                         return <code key={`inline-${inlineIdx}`} className="inline-code">{inlineChunk}</code>;
                     }
-                    const boldParts = inlineChunk.split(/\*\*/g);
-                    return boldParts.map((boldChunk, boldIdx) => {
-                        if (boldIdx % 2 === 1) {
-                            return <strong key={`bold-${boldIdx}`}>{boldChunk}</strong>;
+                    // Handle **bold** markdown within plain text without breaking Python exponents (**2, 5 ** 2)
+                    const parts = parseInlineBold(inlineChunk);
+                    return parts.map((part, partIdx) => {
+                        if (part.type === 'bold') {
+                            return <strong key={`bold-${inlineIdx}-${partIdx}`}>{part.content}</strong>;
                         }
-                        return boldChunk.split('\n').map((line, lineIdx, arr) => (
-                            <span key={`line-${lineIdx}`}>
+                        return part.content.split('\n').map((line, lineIdx, arr) => (
+                            <span key={`line-${inlineIdx}-${partIdx}-${lineIdx}`}>
                                 {line}
                                 {lineIdx < arr.length - 1 && <br />}
                             </span>
@@ -54,18 +86,53 @@ const renderFormattedText = (text) => {
 
 const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
 
-    const [currentQuestion, setCurrentQuestion] = useState(() => {
-        try { return JSON.parse(sessionStorage.getItem(`${storageKey}_question`)) || null; }
-        catch { return null; }
-    });
     const [quizStarted, setQuizStarted] = useState(() => {
         return sessionStorage.getItem(`${storageKey}_started`) === 'true';
+    });
+    const [currentQuestion, setCurrentQuestion] = useState(() => {
+        const isStarted = sessionStorage.getItem(`${storageKey}_started`) === 'true';
+        if (!isStarted) return null;
+        try { return JSON.parse(sessionStorage.getItem(`${storageKey}_question`)) || null; }
+        catch { return null; }
     });
     const [loading, setLoading]                 = useState(false);
     const [prefetchLoading, setPrefetchLoading] = useState(false);
     const [explanationText, setExplanationText] = useState('');
     const [pdfOpen, setPdfOpen]                 = useState(false);
     const [checkingCode, setCheckingCode]       = useState(false);
+    const [cwCooldown, setCwCooldown]           = useState(0);
+    const cwCooldownTimerRef                    = useRef(null);
+
+    const clearCwCooldown = () => {
+        if (cwCooldownTimerRef.current) {
+            clearInterval(cwCooldownTimerRef.current);
+            cwCooldownTimerRef.current = null;
+        }
+        setCwCooldown(0);
+    };
+
+    const startCwCooldown = (duration = 3) => {
+        clearCwCooldown();
+        setCwCooldown(duration);
+        cwCooldownTimerRef.current = setInterval(() => {
+            setCwCooldown(prev => {
+                if (prev <= 1) {
+                    clearInterval(cwCooldownTimerRef.current);
+                    cwCooldownTimerRef.current = null;
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+    };
+
+    useEffect(() => {
+        return () => {
+            if (cwCooldownTimerRef.current) {
+                clearInterval(cwCooldownTimerRef.current);
+            }
+        };
+    }, []);
 
     const lineNumbersRef        = useRef(null);
     const textareaRef           = useRef(null);
@@ -74,10 +141,11 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
 
     const { fetchQuestionData, prefetch, consumePrefetch } = useQuizFetch();
 
-    const getFetchConfig = () => ({
+    const getFetchConfig = (isFirstQuestion = false) => ({
         chapters,
         types: ['code_writing'],
         extraSlots: 5,
+        isFirstQuestion: Boolean(isFirstQuestion),
     });
 
     useEffect(() => {
@@ -92,7 +160,7 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
 
     useEffect(() => {
         if (quizStarted && (!currentQuestion || !currentQuestion[3]?.question)) {
-            getQuestion().then(() => cw_setup());
+            getQuestion().then((q) => { if (q) cw_setup(q); });
         } else if (quizStarted && currentQuestion) {
             setTimeout(() => cw_setup(), 50);
         }
@@ -115,12 +183,12 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
         }
     };
 
-    const prefetchNextQuestion = () => {
+    const prefetchNextQuestion = (isFirstQuestion = false) => {
         setPrefetchLoading(true);
-        prefetch('examQuizzer', getFetchConfig());
+        prefetch('examQuizzer', getFetchConfig(isFirstQuestion));
     };
 
-    const getQuestion = async () => {
+    const getQuestion = async (isFirstQuestion = false) => {
         let qData = null;
 
         // Try to consume the prefetched question from the global context
@@ -129,7 +197,7 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
         // If no pre-fetched data available, fetch now
         if (!qData) {
             setLoading(true);
-            qData = await fetchQuestionData(getFetchConfig());
+            qData = await fetchQuestionData(getFetchConfig(isFirstQuestion));
             setLoading(false);
         }
 
@@ -145,6 +213,8 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
             cw.value = savedCode;
             updateLineCount(savedCode);
         }
+        clearCwCooldown();
+        setCheckingCode(false);
         setExplanationText('');
         const exp = document.getElementById('eq-explanation');
         if (exp) exp.hidden = true;
@@ -198,6 +268,8 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
             document.getElementById('eq-explanation').hidden = false;
             return;
         }
+        if (checkingCode || cwCooldown > 0) return;
+
         setExplanationText('Evaluating your code...');
         document.getElementById('eq-explanation').hidden = false;
         setCheckingCode(true);
@@ -208,7 +280,16 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ question: currentQuestion[3].question, user_answer }),
             });
-            if (!res.ok) throw new Error();
+            if (!res.ok) {
+                if (res.status === 429) {
+                    const data = await res.json().catch(() => ({}));
+                    setExplanationText(data.error || 'Too many evaluation requests. Please wait a moment.');
+                    document.getElementById('eq-explanation').hidden = false;
+                    startCwCooldown(5);
+                    return;
+                }
+                throw new Error();
+            }
             const data = await res.json();
             if (data.is_correct) {
                 setExplanationText(`Correct! ${data.explanation || ''}`);
@@ -216,21 +297,30 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
                 document.getElementById('eq-submit').hidden = true;
                 const nxt = document.getElementById('eq-next');
                 if (nxt) nxt.hidden = false;
+                clearCwCooldown();
             } else {
                 setExplanationText(`Incorrect. ${data.explanation || 'Try again.'}`);
                 document.getElementById('eq-explanation').hidden = false;
+                startCwCooldown(3);
             }
         } catch (err) {
             console.error('[ExamQuizzer] check_answer error:', err);
             setExplanationText('Error evaluating answer. Please try again.');
             document.getElementById('eq-explanation').hidden = false;
+            startCwCooldown(3);
+        } finally {
+            setCheckingCode(false);
         }
     };
 
-    const startQuiz = async () => {
+    const startQuiz = async (isFirst = false) => {
+        setLoading(true);
         setQuizStarted(true);
-        await getQuestion();
-        cw_setup();
+        const qData = await getQuestion(isFirst);
+        setLoading(false);
+        if (qData) {
+            cw_setup(qData);
+        }
         setTimeout(() => {
             const cw = document.getElementById('cw_answer');
             if (cw) cw.value = '';
@@ -238,6 +328,8 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
     };
 
     const resetQuiz = () => {
+        clearCwCooldown();
+        setCheckingCode(false);
         setQuizStarted(false);
         setCurrentQuestion(null);
         setExplanationText('');
@@ -255,7 +347,7 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
 
             <header className="eq-header">
                 <h1>{examName} Practice</h1>
-                <p className="eq-subtitle">Code-writing questions drawn from {chapterRange}</p>
+                {/* <p className="eq-subtitle">Code-writing questions drawn from {chapterRange}</p> */}
             </header>
 
             {/* PDF Review Sheet */}
@@ -278,10 +370,17 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
             {!quizStarted && (
                 <div className="eq-start-screen">
                     <p className="eq-start-desc">
-                        Practice writing Python code for {examName}. Questions are randomly drawn from the covered chapters and evaluated by AI.<br></br>
+                        Practice writing Python code for {examName}. Questions are randomly drawn from the covered chapters and evaluated by AI.
+                            These questions are not represntative of the exam questions, but are meant to review your topics.<br></br>
                         Note: there will be multiple choice, short answer, and multiple-answer questions on the exam, but use the topic quizzer to review your topics.
                     </p>
-                    <button className="quiz-start-btn" onClick={startQuiz} disabled={loading}>
+                    <button 
+                        className="quiz-start-btn" 
+                        onMouseEnter={() => prefetchNextQuestion(true)}
+                        onTouchStart={() => prefetchNextQuestion(true)}
+                        onClick={() => startQuiz(true)} 
+                        disabled={loading}
+                    >
                         {loading ? 'Loading...' : 'Start Practice'}
                     </button>
                 </div>
@@ -295,12 +394,14 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
                         <button className="toggle-all-btn" onClick={resetQuiz}>
                             ← Back to Start
                         </button>
+
                         {currentQuestion && (
                             <span className="eq-topic-label">
+                                <p></p>
                                 <h2>
-                                    <span className="definition">
+                                    {/* <span className="definition">
                                         Topic {currentQuestion[0]}.{currentQuestion[1]}
-                                    </span>
+                                    </span> */}
                                     &nbsp;{currentQuestion[2]}
                                 </h2>
                             </span>
@@ -338,6 +439,9 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
                                         const val = e.target.value;
                                         updateLineCount(val);
                                         setCurrentQuestion(prev => [prev[0], prev[1], prev[2], prev[3], val]);
+                                        if (cwCooldown > 0) {
+                                            clearCwCooldown();
+                                        }
                                     }}
                                     onScroll={handleCwScroll}
                                 />
@@ -354,10 +458,15 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
                             <button
                                 id="eq-submit"
                                 className="quiz-start-btn"
-                                disabled={loading}
+                                disabled={loading || checkingCode || cwCooldown > 0}
                                 onClick={cw_check}
                             >
-                                Submit
+                                {checkingCode
+                                    ? 'Evaluating...'
+                                    : cwCooldown > 0
+                                        ? `Submit (${cwCooldown}s)`
+                                        : 'Submit'
+                                }
                             </button>
 
                             <button
@@ -366,6 +475,8 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
                                 hidden={true}
                                 disabled={loading}
                                 onClick={async () => {
+                                    clearCwCooldown();
+                                    setCheckingCode(false);
                                     setCurrentQuestion(null);
                                     document.getElementById('eq-next').hidden = true;
                                     document.getElementById('eq-submit').hidden = false;

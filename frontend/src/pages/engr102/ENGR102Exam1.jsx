@@ -5,7 +5,7 @@ import { isAuthorized, isDemoMode } from '../../scripts/demo';
 import ExamQuizzer from '../../components/ExamQuizzer';
 import exam1Pdf from '../../assets/pdfs/exam1review.pdf';
 
-const EXAM1_CHAPTERS = [1, 2, 3, 4, 5, 6, 7];
+const EXAM1_CHAPTERS = [13];
 
 const ENGR102Exam1 = () => {
     const navigate = useNavigate();

@@ -221,6 +221,20 @@ const ENGR102Mod7 = () => {
                                 <span className='comment'> # Result:<br></br>[1, 2, 0, 0, 0, 6, 7, 8, 9, 10]</span>
                             </div>
                         </div>
+                        <div className='block'>
+                            <p>Another way we can use list adjusting is to insert elements inside of the list, rather
+                                than at the end of it (using <code>append()</code>).</p>
+                            <p>Let's say we wanted to insert the list <code>['a','b']</code> <strong>after</strong> the 0th index (first element). 
+                                Then we would use box brackets with the same index number for both the beginning and end 
+                                of the slice.
+                            </p>
+                            <div className='code'>
+                                my_list = [1,2,3,4,5,6,7,8,9,10]<br></br>
+                                my_list[1:1] = ['a','b']<br></br>
+                                print(my_list)<br></br><br></br>
+                                <span className='comment'> # Result:<br></br>[1, 'a', 'b', 2, 3, 4, 5, 6, 7, 8, 9, 10]</span>
+                            </div>
+                        </div>
                     </div>
 
                     <h2>More About Lists</h2>
