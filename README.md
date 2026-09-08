@@ -90,6 +90,26 @@ An AI-powered, RAG-based study tool built for Texas A&M ENGR 102 students. Gener
 
 ---
 
+## How the RAG Pipeline Works
+
+1. **Embedding & Storage**: Course curriculum topics and prerequisite boundaries are pre-embedded into 1536-dimensional vectors and stored in PostgreSQL using `pgvector`.
+2. **Semantic Retrieval**: When a question is generated, the query context is converted to vector space via `embedQuery()`, and a cosine distance query (`1 - (embedding <=> query_vector)`) retrieves the exact topic context from `engr102topics`.
+3. **Smart Concept Routing**: Topics marked with `is_concept = TRUE` (e.g. Tree Terminology) are automatically routed away from `code_writing` to practical coding topics in the same chapter or gracefully defaulted to `multiple_choice`.
+4. **Prompt Augmentation**: Retrieved context, reference questions, and chapter boundary constraints are injected into the system instructions.
+5. **Constrained Generation**: The LLM outputs a strictly formatted JSON question matching the question type schema without referencing future course concepts.
+
+---
+
+## Performance & Cost Optimization
+
+1. **Hybrid Model Routing**: Uses **OpenAI GPT-5.6 Luna** for the first question to deliver fast start times, and **DeepSeek V4 Flash (`:nitro`)** for ongoing questions at ~$0.00017/question — cutting per-session API cost by ~50% compared to the previous `gpt-4o-mini` baseline.
+2. **Zero-Waste Hover Prefetching**: Prefetches the first question during mouse hover (`onMouseEnter`) or mobile touch (`onTouchStart`), absorbing the physical click delay so the quiz starts in 0 ms.
+3. **Double-Hop Elimination**: Combines topic metadata discovery and question generation into one unified request. Benchmarked end-to-end latency reduction: **44% faster** (2.2s → 1.2s avg, 1.79× speedup over the previous 2-round-trip architecture).
+4. **Prerequisite & Invariant Filtering**: Programmatic backend filters discard hallucinated multi-line loop short answers, premature matrix references, and contradictory logic before responses reach the user.
+5. **In-Memory Caching**: Pre-warms static curriculum topics and LLM prompt templates into server memory on boot, eliminating 500–1,500 ms remote database queries.
+
+---
+
 ## Local Development
 
 ### Prerequisites
