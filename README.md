@@ -109,6 +109,16 @@ An AI-powered, RAG-based study tool built for Texas A&M ENGR 102 students. Gener
 3. **Double-Hop Elimination**: Combines topic metadata discovery and question generation into one unified request. Benchmarked end-to-end latency reduction: **44% faster** (2.2s → 1.2s avg, 1.79× speedup over the previous 2-round-trip architecture).
 4. **Prerequisite & Invariant Filtering**: Programmatic backend filters discard hallucinated multi-line loop short answers, premature matrix references, and contradictory logic before responses reach the user.
 5. **In-Memory Caching**: Pre-warms static curriculum topics and LLM prompt templates into server memory on boot, eliminating 500–1,500 ms remote database queries.
+---
+
+## Security Hardening
+
+1. **Prompt Injection Defense (LLM Layer)**: User-submitted code answers pass through a multi-layer security pipeline before reaching the LLM:
+   - **Regex-based input filter**: Detects and blocks 12+ common prompt injection patterns (e.g. `ignore previous instructions`, `you are now a`, `return {"is_correct": true}`) before the request ever reaches the AI.
+   - **Canary token verification**: A cryptographically random token (regenerated on each server boot) is embedded in the system prompt. The LLM must echo it back in its response — if the token is missing or altered, the response is discarded as potentially hijacked.
+   - **Output schema validation**: Enforces strict type checks (`is_correct` must be boolean, `explanation` must be string) to reject malformed or manipulated LLM outputs.
+2. **SQL Injection Prevention (Course Allowlist)**: Dynamic table name construction (`${course}topics`) is replaced with a strict allowlist map (`COURSE_TABLE_MAP`). Only pre-registered course identifiers resolve to table names — arbitrary input never reaches SQL.
+3. **CORS Origin Allowlist**: Replaces the permissive `Access-Control-Allow-Origin: *` wildcard with an explicit origin allowlist (production Render domain + local dev servers). Unlisted origins receive no CORS header, causing the browser to block the request.
 
 ---
 

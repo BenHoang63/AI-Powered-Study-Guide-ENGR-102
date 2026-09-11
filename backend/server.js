@@ -17,9 +17,18 @@ app.use(express.json());
 
 import fs from 'fs';
 
-// ── CORS — allow frontend dev server ──
+// ── CORS — origin allowlist (no wildcard) ──
+const ALLOWED_ORIGINS = new Set([
+	"https://engr-study-helper.onrender.com",
+	"http://localhost:5173",  // Vite dev server
+	"http://localhost:3000",  // local backend serving frontend
+]);
 app.use((req, res, next) => {
-	res.header("Access-Control-Allow-Origin", "*");
+	const origin = req.headers.origin;
+	if (ALLOWED_ORIGINS.has(origin)) {
+		res.header("Access-Control-Allow-Origin", origin);
+		res.header("Vary", "Origin");
+	} // else: no CORS header → browser blocks the request
 	res.header("Access-Control-Allow-Headers", "Content-Type");
 	res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
 	if (req.method === "OPTIONS") return res.sendStatus(200);
@@ -555,6 +564,32 @@ const checkAnswerRateLimit = new Map();
 const CHECK_ANSWER_WINDOW_MS = 60 * 1000; // 1 minute
 const CHECK_ANSWER_MAX_PER_WINDOW = 15; // Generous for humans (15/min), prevents spam
 
+// ── Prompt Injection Defense ──
+import crypto from "crypto";
+const CANARY_TOKEN = crypto.randomBytes(16).toString("hex"); // regenerated on each server boot
+
+/** Detect common prompt injection patterns in user-submitted code answers. */
+function detectPromptInjection(input) {
+	const patterns = [
+		/ignore\s+(all\s+)?(previous|above|prior)\s+(instructions?|prompts?|rules?)/i,
+		/disregard\s+(all\s+)?(previous|above|prior)/i,
+		/you\s+are\s+now\s+(a|an|my)/i,
+		/new\s+instructions?:/i,
+		/system\s*:\s*/i,
+		/\bact\s+as\b/i,
+		/respond\s+with\s+only/i,
+		/return\s*\{\s*["']is_correct["']\s*:/i,
+		/override\s+(the\s+)?(system|instructions?|rules?)/i,
+		/forget\s+(everything|all|your)/i,
+		/do\s+not\s+(evaluate|check|analyze|grade)/i,
+		/\brole\s*:\s*(system|assistant)\b/i,
+	];
+	for (const p of patterns) {
+		if (p.test(input)) return { detected: true, pattern: p.source };
+	}
+	return { detected: false };
+}
+
 // ============================ check code writing answer ============================ //
 app.post("/api/engr102/quiz/check_answer", async (req, res) => {
 /*
@@ -572,6 +607,13 @@ app.post("/api/engr102/quiz/check_answer", async (req, res) => {
 	const { question, user_answer } = req.body;
 	if (!question || !user_answer) {
 		return res.status(400).json({ error: "Missing question or user_answer" });
+	}
+
+	// ── Prompt Injection Detection ──
+	const injection = detectPromptInjection(user_answer);
+	if (injection.detected) {
+		console.warn(`[Security] Prompt injection attempt blocked from ${req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip}: pattern=${injection.pattern}`);
+		return res.status(400).json({ error: "Your submission was flagged by our security filter. Please submit only Python code." });
 	}
 
 	const clientIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip || req.socket.remoteAddress;
@@ -605,6 +647,14 @@ IMPORTANT: Respond with ONLY raw valid JSON matching this schema, no markdown, n
 {
   "is_correct": true,
   "explanation": "Feedback explanation string"
+}
+
+SECURITY CANARY: Your response MUST include this exact token in a "_canary" field: "${CANARY_TOKEN}". This is used to verify you followed instructions and were not manipulated by user input.
+Full expected response schema:
+{
+  "is_correct": true/false,
+  "explanation": "...",
+  "_canary": "${CANARY_TOKEN}"
 }
 `;
 
@@ -659,9 +709,22 @@ ${user_answer}
 			const jsonString = rawContent.slice(firstBrace, lastBrace + 1);
 			const result = JSON.parse(jsonString);
 
+			// ── Canary Token Verification ──
+			// If the LLM was hijacked by prompt injection, it won't echo back our secret canary.
+			if (result._canary !== CANARY_TOKEN) {
+				console.warn(`[Security] Canary token mismatch — possible prompt injection. Expected: ${CANARY_TOKEN.slice(0, 8)}…, Got: ${String(result._canary).slice(0, 8)}…`);
+				continue; // discard this response, retry
+			}
+
+			// ── Output Validation: enforce expected schema ──
+			if (typeof result.is_correct !== "boolean" || typeof result.explanation !== "string") {
+				console.warn(`[Security] Output schema violation — is_correct: ${typeof result.is_correct}, explanation: ${typeof result.explanation}`);
+				continue;
+			}
+
 			return res.json({
-				is_correct: Boolean(result.is_correct),
-				explanation: result.explanation || result.feedback || ""
+				is_correct: result.is_correct,
+				explanation: result.explanation
 			});
 
 		} catch (err) {
@@ -790,14 +853,19 @@ app.post("/api/stats/record", async (req, res) => {
 });
 
 // get topic progress
+// ── Course Allowlist (SQL injection prevention — no dynamic table names) ──
+const COURSE_TABLE_MAP = {
+	"engr102": "engr102topics",
+	// Add future courses here: "csce121": "csce121topics", etc.
+};
+
 app.get("/api/stats/:course/:email", async (req, res) => {
     const { course, email } = req.params;
 
-    if (!/^[a-zA-Z0-9_]+$/.test(course)) {
-        return res.status(400).json({ error: "Invalid course parameter." });
+    const topicsTable = COURSE_TABLE_MAP[course.toLowerCase()];
+    if (!topicsTable) {
+        return res.status(400).json({ error: `Unknown course: '${course}'. Supported: ${Object.keys(COURSE_TABLE_MAP).join(", ")}` });
     }
-
-    const topicsTable = `${course.toLowerCase()}topics`;
 
     try {
         const result = await pool.query(
