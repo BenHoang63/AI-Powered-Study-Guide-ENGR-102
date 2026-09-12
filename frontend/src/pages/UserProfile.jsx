@@ -1,11 +1,21 @@
+import { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { 
+    BarChart3, 
+    RotateCw, 
+    CheckCircle2, 
+    Target, 
+    BookOpen, 
+    Layers, 
+    ArrowRight,
+    AlertCircle,
+    ListChecks,
+    Filter,
+    Play
+} from 'lucide-react';
 import { authClient } from '../scripts/auth';
 import { isAuthorized, isDemoMode } from '../scripts/demo';
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import '../styles/user_profile.css';
 
-// ── Course definitions ──
-// Add new courses here as the app grows.
 const COURSES = [
     {
         id: 'engr102',
@@ -25,11 +35,7 @@ const COURSES = [
             { num: 12, title: 'Modules' },
         ]
     },
-    // Add future courses here:
-    // { id: 'engr216', label: 'ENGR 216', chapters: [...] },
 ];
-
-// ── Helpers ──
 
 const getStatus = (accuracy_pct, attempts) => {
     if (!attempts || attempts === 0) return 'none';
@@ -39,45 +45,44 @@ const getStatus = (accuracy_pct, attempts) => {
 };
 
 const BADGE_CONFIG = {
-    strong: { label: '✓ Strong',    cls: 'badge-strong', barColor: '#3cb371' },
-    ok:     { label: '~ Getting There', cls: 'badge-ok', barColor: '#d4a017' },
-    weak:   { label: '✗ Needs Work', cls: 'badge-weak', barColor: '#c0392b' },
-    none:   { label: '— Not Tried', cls: 'badge-none', barColor: '#333'    },
+    strong: { label: 'Mastered', badgeClass: 'bg-emerald-950/60 text-emerald-300 border-emerald-800/60', barClass: 'bg-emerald-500' },
+    ok:     { label: 'Progressing', badgeClass: 'bg-amber-950/60 text-amber-300 border-amber-800/60', barClass: 'bg-amber-500' },
+    weak:   { label: 'Needs Practice', badgeClass: 'bg-rose-950/60 text-rose-300 border-rose-800/60', barClass: 'bg-rose-500' },
+    none:   { label: 'Unattempted', badgeClass: 'bg-neutral-800 text-neutral-400 border-neutral-700', barClass: 'bg-neutral-700' },
 };
 
-
-// ── Component ──
-
 const UserProfile = () => {
-
-    const [user, setUser]         = useState(null);
-    const [error, setError]       = useState(null);
-    const [stats, setStats]       = useState([]);   // flat array of topic rows from API
-    const [loading, setLoading]   = useState(false);
+    const [user, setUser]                 = useState(null);
+    const [error, setError]               = useState(null);
+    const [stats, setStats]               = useState([]);
+    const [loading, setLoading]           = useState(false);
     const [activeCourse, setActiveCourse] = useState(COURSES[0].id);
+    const [filterStatus, setFilterStatus] = useState('all'); // 'all' | 'weak' | 'strong'
     const navigate = useNavigate();
 
-    // ── Auth check ──
     useEffect(() => {
         authClient.getSession().then(({ data }) => {
             if (data?.user) {
                 if (isAuthorized(data.user.email)) {
                     setUser(data.user);
                 } else {
-                    console.log('Not a TAMU student:', data.user.email);
                     setError('Please sign in with your @tamu.edu email.');
                     authClient.signOut();
                 }
             } else if (!isDemoMode()) {
                 navigate('/');
             }
+        }).catch((err) => {
+            console.error(err);
+            if (!isDemoMode()) navigate('/');
         });
-    }, []);
+    }, [navigate]);
 
     const fetchStats = () => {
-        if (!user?.email) return;
+        if (!user?.email && !isDemoMode()) return;
+        const targetEmail = user?.email || 'demo@tamu.edu';
         setLoading(true);
-        fetch(`/api/stats/${activeCourse}/${encodeURIComponent(user.email)}`)
+        fetch(`/api/stats/${activeCourse}/${encodeURIComponent(targetEmail)}`)
             .then(r => r.json())
             .then(data => {
                 setStats(data.stats || []);
@@ -89,160 +94,300 @@ const UserProfile = () => {
             });
     };
 
-    // ── Fetch stats whenever user or course changes ──
     useEffect(() => {
         fetchStats();
     }, [user, activeCourse]);
 
-    // ── Derived summary numbers ──
-    const attempted   = stats.filter(s => s.attempts > 0);
+    const attempted     = stats.filter(s => s.attempts > 0);
     const totalAttempts = stats.reduce((sum, s) => sum + Number(s.attempts), 0);
     const totalCorrect  = stats.reduce((sum, s) => sum + Number(s.correct),  0);
     const overallAcc    = totalAttempts > 0
         ? Math.round((totalCorrect / totalAttempts) * 100)
         : null;
-    const strongCount = stats.filter(s => getStatus(Number(s.accuracy_pct), Number(s.attempts)) === 'strong').length;
+    const strongCount   = stats.filter(s => getStatus(Number(s.accuracy_pct), Number(s.attempts)) === 'strong').length;
 
-    // ── Group stats by chapter for display ──
     const courseConfig   = COURSES.find(c => c.id === activeCourse);
     const statsByChapter = courseConfig?.chapters.map(ch => ({
         ...ch,
         topics: stats.filter(s => Number(s.chapter) === ch.num)
     })) || [];
 
-    // ── Render ──
     return (
-        <>
-            <header style={{ textAlign: 'center', margin: '32px auto 24px' }}>
-                <h1 style={{ marginBottom: 4 }}>User Progress</h1>
-                {user && (
-                    <p style={{ color: '#888', marginTop: 0, fontSize: '0.9rem' }}>
-                        {user.email}
-                    </p>
-                )}
-                {error && (
-                    <p style={{ color: '#c0392b' }}>{error}</p>
-                )}
-                <button
-                    className="refresh-btn"
-                    onClick={fetchStats}
-                    disabled={loading}
-                >
-                    {loading ? 'Refreshing...' : '↻ Refresh'}
-                </button>
-            </header>
+        <div className="min-h-screen bg-so-bg text-so-text-body pb-24">
+            {/* Top brand accent stripe */}
+            <div className="h-0.5 bg-[#500000]" />
 
-            <section className="profile-wrapper">
+            {/* Header / Breadcrumb */}
+            <div className="border-b border-so-border bg-[#161616] py-8 px-4 sm:px-6">
+                <div className="max-w-6xl mx-auto">
+                    <div className="flex items-center gap-2 text-xs text-so-text-muted mb-3 font-mono">
+                        <Link to="/home" className="hover:text-white transition-colors">Home</Link>
+                        <span>/</span>
+                        <span className="text-white font-semibold">Student Performance & Mastery</span>
+                    </div>
 
-                {/* ── Course tabs ── */}
-                {COURSES.length > 1 && (
-                    <div className="course-tabs">
-                        {COURSES.map(c => (
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div>
+                            <div className="text-xs font-mono text-so-text-muted mb-1">
+                                {user?.email || 'STUDENT RECORD'} &bull; ENGR 102
+                            </div>
+                            <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+                                Topic Mastery & Analytics
+                            </h1>
+                            <p className="text-xs sm:text-sm text-so-text-muted mt-1 max-w-xl leading-relaxed">
+                                Diagnostic overview of your accuracy and completion rates across all 12 Python modules to identify weak spots ahead of midterms.
+                            </p>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-2">
                             <button
-                                key={c.id}
-                                className={`course-tab${activeCourse === c.id ? ' active' : ''}`}
-                                onClick={() => setActiveCourse(c.id)}
+                                onClick={fetchStats}
+                                disabled={loading}
+                                className="so-btn-secondary text-xs"
                             >
-                                {c.label}
+                                <RotateCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-white' : ''}`} />
+                                <span>{loading ? 'Refreshing...' : 'Refresh Records'}</span>
                             </button>
-                        ))}
+                            <button
+                                onClick={() => navigate('/engr102/topicquizzer')}
+                                className="so-btn-primary text-xs"
+                            >
+                                <ListChecks className="w-3.5 h-3.5" />
+                                <span>Start Topic Drill</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <main className="max-w-6xl mx-auto px-4 sm:px-6 pt-8 space-y-8">
+                
+                {error && (
+                    <div className="p-3 rounded bg-red-950/40 border border-red-800/50 text-red-300 text-xs flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                        <span>{error}</span>
                     </div>
                 )}
 
-                {/* ── Summary cards ── */}
-                <div className="profile-summary">
-                    <div className="profile-stat-card">
-                        <span className="stat-value">{attempted.length}</span>
-                        <span className="stat-label">Topics Tried</span>
+                {/* Grounded Summary Metric Cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="so-card p-4 sm:p-5 border-so-border">
+                        <div className="flex items-center justify-between text-so-text-muted mb-2">
+                            <span className="text-xs font-medium">Attempted Topics</span>
+                            <BookOpen className="w-4 h-4 text-white" />
+                        </div>
+                        <div className="text-2xl font-bold text-white tracking-tight font-mono">
+                            {attempted.length}
+                        </div>
+                        <div className="text-[11px] text-so-text-muted mt-1">
+                            out of 12 lecture modules
+                        </div>
                     </div>
-                    <div className="profile-stat-card">
-                        <span className="stat-value">{totalAttempts}</span>
-                        <span className="stat-label">Total Attempts</span>
+
+                    <div className="so-card p-4 sm:p-5 border-so-border">
+                        <div className="flex items-center justify-between text-so-text-muted mb-2">
+                            <span className="text-xs font-medium">Questions Answered</span>
+                            <Target className="w-4 h-4 text-[#7aa7c7]" />
+                        </div>
+                        <div className="text-2xl font-bold text-white tracking-tight font-mono">
+                            {totalAttempts}
+                        </div>
+                        <div className="text-[11px] text-so-text-muted mt-1">
+                            {totalCorrect} answered correctly
+                        </div>
                     </div>
-                    <div className="profile-stat-card">
-                        <span className="stat-value">
+
+                    <div className="so-card p-4 sm:p-5 border-so-border">
+                        <div className="flex items-center justify-between text-so-text-muted mb-2">
+                            <span className="text-xs font-medium">Cumulative Accuracy</span>
+                            <BarChart3 className="w-4 h-4 text-amber-400" />
+                        </div>
+                        <div className="text-2xl font-bold text-white tracking-tight font-mono">
                             {overallAcc !== null ? `${overallAcc}%` : '—'}
-                        </span>
-                        <span className="stat-label">Overall Accuracy</span>
+                        </div>
+                        <div className="text-[11px] text-so-text-muted mt-1">
+                            across all submissions
+                        </div>
                     </div>
-                    <div className="profile-stat-card">
-                        <span className="stat-value" style={{ color: '#3cb371' }}>{strongCount}</span>
-                        <span className="stat-label">Topics Strong</span>
+
+                    <div className="so-card p-4 sm:p-5 border-so-border">
+                        <div className="flex items-center justify-between text-so-text-muted mb-2">
+                            <span className="text-xs font-medium">Topics Mastered</span>
+                            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                        </div>
+                        <div className="text-2xl font-bold text-emerald-400 tracking-tight font-mono">
+                            {strongCount}
+                        </div>
+                        <div className="text-[11px] text-so-text-muted mt-1">
+                            ≥ 80% accuracy (10+ attempts)
+                        </div>
                     </div>
                 </div>
 
-                {/* ── Loading state ── */}
-                {loading && (
-                    <p className="profile-loading">Loading your progress...</p>
-                )}
+                {/* Filter Toolbar */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-so-border pb-3">
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-so-text-muted font-medium mr-2">Filter View:</span>
+                        <button
+                            onClick={() => setFilterStatus('all')}
+                            className={`px-2.5 py-1 text-xs rounded transition-colors ${
+                                filterStatus === 'all'
+                                    ? 'bg-so-surface text-white border border-so-border font-semibold'
+                                    : 'text-so-text-muted hover:text-white'
+                            }`}
+                        >
+                            All Modules
+                        </button>
+                        <button
+                            onClick={() => setFilterStatus('weak')}
+                            className={`px-2.5 py-1 text-xs rounded transition-colors ${
+                                filterStatus === 'weak'
+                                    ? 'bg-rose-950/40 text-rose-300 border border-rose-800/60 font-semibold'
+                                    : 'text-so-text-muted hover:text-white'
+                            }`}
+                        >
+                            Needs Practice (&lt; 70%)
+                        </button>
+                        <button
+                            onClick={() => setFilterStatus('strong')}
+                            className={`px-2.5 py-1 text-xs rounded transition-colors ${
+                                filterStatus === 'strong'
+                                    ? 'bg-emerald-950/40 text-emerald-300 border border-emerald-800/60 font-semibold'
+                                    : 'text-so-text-muted hover:text-white'
+                            }`}
+                        >
+                            Mastered (&ge; 80%)
+                        </button>
+                    </div>
 
-                {/* ── Empty state ── */}
+                    <div className="text-xs text-so-text-muted font-mono">
+                        Showing ENGR 102 Coursework
+                    </div>
+                </div>
+
+                {/* Empty State */}
                 {!loading && attempted.length === 0 && (
-                    <div className="profile-empty">
-                        <p>No quiz data yet.</p>
+                    <div className="so-card p-8 text-center border-so-border max-w-lg mx-auto my-8">
+                        <div className="w-10 h-10 rounded bg-so-surface border border-so-border flex items-center justify-center mx-auto mb-3">
+                            <ListChecks className="w-5 h-5 text-white" />
+                        </div>
+                        <h3 className="text-sm font-bold text-white mb-1.5">
+                            No Quiz History Recorded
+                        </h3>
+                        <p className="text-xs text-so-text-muted mb-5 max-w-sm mx-auto leading-relaxed">
+                            Submissions from the Topic Quizzer and Exam Review sandboxes will automatically populate your mastery analytics here.
+                        </p>
+                        <button
+                            onClick={() => navigate('/engr102/topicquizzer')}
+                            className="so-btn-primary text-xs"
+                        >
+                            <span>Open Topic Quizzer</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
                     </div>
                 )}
 
-                {/* ── Per-chapter topic breakdown ── */}
-                {!loading && statsByChapter.map(ch => {
-                    // Only render chapters that have any attempts
-                    const hasActivity = ch.topics.some(t => Number(t.attempts) > 0);
-                    if (!hasActivity) return null;
+                {/* Dense Student Gradebook Table */}
+                {!loading && (
+                    <div className="space-y-6">
+                        {statsByChapter.map((ch) => {
+                            let visibleTopics = ch.topics;
+                            if (filterStatus === 'weak') {
+                                visibleTopics = ch.topics.filter(t => {
+                                    const acc = Number(t.accuracy_pct);
+                                    return Number(t.attempts) > 0 && acc < 70;
+                                });
+                            } else if (filterStatus === 'strong') {
+                                visibleTopics = ch.topics.filter(t => {
+                                    const acc = Number(t.accuracy_pct);
+                                    return Number(t.attempts) >= 10 && acc >= 80;
+                                });
+                            }
 
-                    return (
-                        <div key={ch.num} className="chapter-section">
-                            <div className="chapter-heading">
-                                {courseConfig?.label} — Chapter {ch.num} — {ch.title}
-                            </div>
+                            if (visibleTopics.length === 0 && filterStatus !== 'all') return null;
 
-                            {ch.topics.map((t, i) => {
-                                const attempts  = Number(t.attempts);
-                                const accuracy  = attempts > 0 ? Number(t.accuracy_pct) : null;
-                                const status    = getStatus(accuracy, attempts);
-                                const badge     = BADGE_CONFIG[status];
-                                const fillPct   = accuracy !== null ? accuracy : 0;
-
-                                return (
-                                    <div key={i} className="topic-row">
-                                        <div className="topic-label">
-                                            <span className="topic-num">{ch.num}.{t.topic}</span>
-                                            {t.topic_name || `Topic ${t.topic}`}
+                            return (
+                                <div key={ch.num} className="so-card border-so-border overflow-hidden">
+                                    {/* Table Header Bar */}
+                                    <div className="bg-[#181818] px-4 py-3 border-b border-so-border flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-mono text-xs text-[#fca5a5] font-semibold">
+                                                Chapter {ch.num}
+                                            </span>
+                                            <span className="text-xs font-bold text-white">
+                                                {ch.title}
+                                            </span>
                                         </div>
-
-                                        {/* Progress bar */}
-                                        <div className="topic-bar-wrap">
-                                            <div
-                                                className="topic-bar-fill"
-                                                style={{
-                                                    width: `${fillPct}%`,
-                                                    backgroundColor: badge.barColor
-                                                }}
-                                            />
-                                        </div>
-
-                                        {/* Accuracy % */}
-                                        <span className="topic-accuracy">
-                                            {accuracy !== null ? `${accuracy}%` : '—'}
-                                        </span>
-
-                                        {/* Attempts */}
-                                        <span style={{ width: 52, textAlign: 'right', fontSize: '0.8rem', color: '#666', flexShrink: 0 }}>
-                                            {attempts > 0 ? `${t.correct}/${attempts}` : ''}
-                                        </span>
-
-                                        {/* Status badge */}
-                                        <span className={`topic-badge ${badge.cls}`}>
-                                            {badge.label}
+                                        <span className="text-[11px] text-so-text-muted font-mono">
+                                            {visibleTopics.length} topic records
                                         </span>
                                     </div>
-                                );
-                            })}
-                        </div>
-                    );
-                })}
 
-            </section>
-        </>
+                                    {/* Table Content */}
+                                    {visibleTopics.length === 0 ? (
+                                        <div className="p-4 text-xs text-so-text-muted text-center italic">
+                                            No questions attempted in this chapter yet.
+                                        </div>
+                                    ) : (
+                                        <div className="divide-y divide-so-borderSubtle">
+                                            {visibleTopics.map((t, i) => {
+                                                const attempts = Number(t.attempts);
+                                                const accuracy = attempts > 0 ? Number(t.accuracy_pct) : null;
+                                                const status   = getStatus(accuracy, attempts);
+                                                const badge    = BADGE_CONFIG[status];
+                                                const fillPct  = accuracy !== null ? accuracy : 0;
+
+                                                return (
+                                                    <div 
+                                                        key={i} 
+                                                        className="px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs hover:bg-[#202020] transition-colors"
+                                                    >
+                                                        {/* Topic ID and Title */}
+                                                        <div className="sm:w-2/5 flex items-center gap-2.5">
+                                                            <span className="font-mono text-so-text-muted text-[11px] bg-so-surface px-1.5 py-0.5 rounded border border-so-border shrink-0">
+                                                                {ch.num}.{t.topic}
+                                                            </span>
+                                                            <span className="font-medium text-white truncate">
+                                                                {t.topic_name || `Topic ${t.topic}`}
+                                                            </span>
+                                                        </div>
+
+                                                        {/* Progress bar container */}
+                                                        <div className="sm:flex-1 flex items-center gap-3">
+                                                            <div className="w-full bg-[#111111] h-1.5 rounded-sm overflow-hidden border border-[#2d2d2d]">
+                                                                <div
+                                                                    className={`h-full transition-all duration-200 ${badge.barClass}`}
+                                                                    style={{ width: `${fillPct}%` }}
+                                                                />
+                                                            </div>
+                                                            <span className="font-mono text-[11px] text-white w-10 text-right shrink-0">
+                                                                {accuracy !== null ? `${accuracy}%` : '—'}
+                                                            </span>
+                                                        </div>
+
+                                                        {/* Attempts & Status Badge */}
+                                                        <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+                                                            <span className="text-[11px] text-so-text-muted font-mono">
+                                                                {attempts > 0 ? `${t.correct}/${attempts} correct` : '0 tries'}
+                                                            </span>
+                                                            <span className={`px-2 py-0.5 rounded text-[10px] font-medium border ${badge.badgeClass}`}>
+                                                                {badge.label}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+
+            </main>
+        </div>
     );
 };
 

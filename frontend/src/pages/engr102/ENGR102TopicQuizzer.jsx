@@ -1,9 +1,8 @@
 import { authClient } from '../../scripts/auth';
 import { isAuthorized, isDemoMode } from '../../scripts/demo';
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useQuizFetch } from '../../context/QuizFetchContext.jsx';
-import '../../styles/styles.css';
 import '../../styles/topic_quizzer.css';
 
 const TOPICS = [
@@ -293,21 +292,22 @@ const ENGR102TopicQuizzer = () => {
     }, [quizMode]);
 
     useEffect(() => {
-        sessionStorage.setItem('quizzer_currentQuestion', JSON.stringify(currentQuestion));
+        if (currentQuestion?.[3]?.question) {
+            sessionStorage.setItem('quizzer_currentQuestion', JSON.stringify(currentQuestion));
+        }
     }, [currentQuestion]);
 
     useEffect(() => {
         sessionStorage.setItem('quizzer_explanationText', explanationText);
     }, [explanationText]);
 
-    // Pre-fetch the next question as soon as the current one is displayed
-    // Guard: skip if getQuestion is still actively running (to avoid double-fetch on remount)
-    const fetchInProgressRef = useRef(false);
+    // Pre-fetch the next question as soon as a question is displayed and quizMode is active
     useEffect(() => {
-        if (quizMode && currentQuestion[3]?.question && !fetchInProgressRef.current) {
+        if (quizMode && currentQuestion?.[3]?.question) {
             prefetchNextQuestion();
         }
-    }, [currentQuestion[3]?.question]);
+    }, [quizMode, currentQuestion?.[3]?.question]);
+
     useEffect(() => {
         let cancelled = false;
         const savedQuizMode = sessionStorage.getItem('quizzer_quizMode') === 'true';
@@ -335,13 +335,16 @@ const ENGR102TopicQuizzer = () => {
                 } else {
                     start_question_setup(savedQ);
                 }
+                // Pre-fetch the next question in the background while viewing the restored question
+                prefetchNextQuestion();
             } else {
                 // If savedQ is missing or was left in a blank/loading state ({}), fetch a new question!
-                fetchInProgressRef.current = true;
                 getQuestion().then((qData) => {
                     if (cancelled) return; // StrictMode or stale mount — discard
-                    fetchInProgressRef.current = false;
-                    if (qData) start_question_setup(qData);
+                    if (qData) {
+                        start_question_setup(qData);
+                        prefetchNextQuestion();
+                    }
                 });
             }
         }
@@ -413,7 +416,7 @@ const ENGR102TopicQuizzer = () => {
     // ========================== GET QUESTION ========================== //
 
     const getFetchConfig = (isFirstQuestion = false) => ({
-        chapters: selectedTopics.length > 0 ? selectedTopics : [1],
+        chapters: selectedTopics.length > 0 ? selectedTopics.map(Number) : [1],
         types: selectedTypes.length > 0 ? selectedTypes : Object.keys(QUESTION_TYPE_LABELS),
         extraSlots: 8,
         isFirstQuestion: Boolean(isFirstQuestion),
@@ -421,7 +424,10 @@ const ENGR102TopicQuizzer = () => {
 
     const prefetchNextQuestion = (isFirstQuestion = false) => {
         setPrefetchLoading(true);
-        prefetch('topicQuizzer', getFetchConfig(isFirstQuestion));
+        const p = prefetch('topicQuizzer', getFetchConfig(isFirstQuestion));
+        if (p && typeof p.finally === 'function') {
+            p.finally(() => setPrefetchLoading(false));
+        }
     };
 
     const getQuestion = async (forceFresh = false, isFirstQuestion = false) => {
@@ -432,11 +438,16 @@ const ENGR102TopicQuizzer = () => {
             qData = await consumePrefetch('topicQuizzer');
             // Validate that the prefetched question belongs to the current topic and type selection
             if (qData) {
-                const qChapter = qData[0];
+                const qChapter = Number(qData[0]);
                 const qType = qData[3]?.type;
-                const validTopic = selectedTopics.length === 0 || selectedTopics.includes(qChapter);
-                const validType = selectedTypes.length === 0 || selectedTypes.includes(qType);
+                const validTopic = selectedTopics.length === 0 || selectedTopics.some(t => Number(t) === qChapter);
+                // Allow exact type match OR multiple_choice fallback if smart-routing switched a conceptual topic
+                const validType = selectedTypes.length === 0
+                    || selectedTypes.some(t => String(t).toLowerCase() === String(qType).toLowerCase())
+                    || qType === 'multiple_choice';
+
                 if (!validTopic || !validType) {
+                    console.warn('[TopicQuizzer] Discarding stale prefetched question:', { qChapter, qType, selectedTopics, selectedTypes });
                     qData = null; // Discard stale question from previous selection
                 }
             }
@@ -452,6 +463,8 @@ const ENGR102TopicQuizzer = () => {
         setPrefetchLoading(false);
         if (qData) {
             setCurrentQuestion(qData);
+            // Proactively trigger the prefetch for the NEXT question right away
+            prefetchNextQuestion();
         }
         return qData;
     };
@@ -523,8 +536,7 @@ const ENGR102TopicQuizzer = () => {
     const mc_check = async () => {
         // check if current answer equals correct answer
         if (currentQuestion[4] === currentQuestion[3].correct_answer) {
-            // UI
-            document.getElementById(`mc${currentQuestion[4]}`).style.backgroundColor = '#98FB98';
+            // UI: Keep selected styling (maroon)
             setExplanationText(`Correct! ${currentQuestion[3].explanation}`);
             document.getElementById('explanation').hidden = false;
             document.getElementById('submit').hidden = true;
@@ -942,15 +954,28 @@ const ENGR102TopicQuizzer = () => {
     // ================== USER INTERFACE =================== //
 
     return (
-        <>
+        <div className="min-h-screen bg-so-bg text-so-text-body pb-24">
+            {/* Top brand accent stripe */}
+            <div className="h-0.5 bg-[#500000]" />
 
-            
+            {/* Header Banner */}
+            <header className="border-b border-so-border bg-[#161616] py-8 px-4 sm:px-6 mb-8 text-center">
+                <div className="max-w-4xl mx-auto">
+                    <div className="flex items-center justify-center gap-2 text-xs text-so-text-muted mb-3 font-mono">
+                        <Link to="/home" className="hover:text-white transition-colors">Home</Link>
+                        <span>/</span>
+                        <Link to="/engr102" className="hover:text-white transition-colors">ENGR 102</Link>
+                        <span>/</span>
+                        <span className="text-white font-semibold">Topic Quizzer</span>
+                    </div>
 
-            <header id="center" style={{ textAlign: "center", margin: "auto" }}>
-                <h1>Topic Quizzer</h1>
-                <p style={{ color: "#aaa", marginTop: "-8px" }} id='select-topics-desc'>
-                    Select the topics you want to be quizzed on
-                </p>
+                    <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+                        Topic Quizzer
+                    </h1>
+                    <p className="text-xs sm:text-sm text-so-text-muted mt-2 leading-relaxed" id='select-topics-desc'>
+                        Select the topics you want to be quizzed on
+                    </p>
+                </div>
             </header>
 
             <section id="center">
@@ -979,7 +1004,7 @@ const ENGR102TopicQuizzer = () => {
                                     onClick={() => toggleTopic(topic.id)}
                                 >
                                     <span className="topic-number">Chapter {topic.id}</span>
-                                    {topic.title}
+                                    <span className="topic-name">{topic.title}</span>
                                 </button>
                             );
                         })}
@@ -1071,7 +1096,14 @@ const ENGR102TopicQuizzer = () => {
                             Select Topics
                     </button>
 
-                    <h2><span className='definition' id='topic-num'>Topic {currentQuestion[0]}.{currentQuestion[1]}</span> &nbsp;<span id='topic-title'>{currentQuestion[2]}</span></h2>
+                    <div className="my-6 pb-4 border-b border-so-border">
+                        <div className="text-xs font-mono text-so-text-muted uppercase tracking-wider mb-1.5" id='topic-num'>
+                            Topic {currentQuestion[0]}.{currentQuestion[1]}
+                        </div>
+                        <h2 id='topic-title' className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+                            {currentQuestion[2]}
+                        </h2>
+                    </div>
                     <div id='question' style={{ margin: "16px 0", fontSize: "1.1rem" }}>
                         {currentQuestion[3]?.question ? (
                             <>
@@ -1273,7 +1305,7 @@ const ENGR102TopicQuizzer = () => {
                         onClick={ async () => {
                             clearCwCooldown();
                             setCheckingCode(false);
-                            // Clear question immediately so it disappears while the next one loads
+                            // Clear question immediately so it disappears right away
                             setCurrentQuestion(prev => [prev[0], prev[1], prev[2], {}, null, false, false, false]);
                             const nextBtn = document.getElementById('next-question');
                             if (nextBtn) nextBtn.hidden = true;
@@ -1306,7 +1338,7 @@ const ENGR102TopicQuizzer = () => {
 
                 </div>
             </section>
-        </>
+        </div>
     );
 
 }

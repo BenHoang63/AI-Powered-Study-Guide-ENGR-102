@@ -113,11 +113,19 @@ export const QuizFetchProvider = ({ children }) => {
 
     /**
      * Start a background prefetch for the given channel.
-     * If a fetch is already in-flight (or resolved but unconsumed), this is a no-op.
+     * If a fetch is already in-flight (or resolved but unconsumed), returns the active promise or resolved data.
      */
     const prefetch = (channel, config) => {
         const slot = prefetchMap.current[channel];
-        if (slot && (slot.promise || slot.data)) return; // already in-flight or ready
+        if (slot && (slot.promise || slot.data)) {
+            // Already in-flight or ready
+            return slot.promise || Promise.resolve(slot.data);
+        }
+
+        console.log(`[QuizFetch] Starting prefetch for [${channel}]...`, {
+            chapters: config.chapters,
+            types: config.types
+        });
 
         const promise = fetchQuestionData({ ...config, channel });
         const entry = { promise, resolved: false, data: null };
@@ -127,11 +135,15 @@ export const QuizFetchProvider = ({ children }) => {
             entry.resolved = true;
             entry.data = result;
             entry.promise = null; // no longer in-flight
-        }).catch(() => {
+            console.log(`[QuizFetch] Prefetch ready for [${channel}]!`, result ? `Chapter ${result[0]}, Topic ${result[1]} (${result[3]?.type})` : 'null result');
+        }).catch((err) => {
             entry.resolved = true;
             entry.data = null;
             entry.promise = null;
+            console.error(`[QuizFetch] Prefetch error for [${channel}]:`, err);
         });
+
+        return promise;
     };
 
     /**
@@ -149,18 +161,21 @@ export const QuizFetchProvider = ({ children }) => {
      */
     const consumePrefetch = async (channel) => {
         const slot = prefetchMap.current[channel];
-        if (!slot) return null;
+        if (!slot) {
+            console.log(`[QuizFetch] consumePrefetch: Cache miss for [${channel}] (no slot)`);
+            return null;
+        }
 
         let result;
         if (slot.promise) {
-            // Still in-flight — await it
+            console.log(`[QuizFetch] consumePrefetch: In-flight prefetch for [${channel}] is still resolving, waiting...`);
             result = await slot.promise;
         } else {
-            // Already resolved
+            console.log(`[QuizFetch] consumePrefetch: Cache HIT for [${channel}]! Instant load.`);
             result = slot.data;
         }
 
-        // Clear the slot
+        // Clear the slot so the next question can be prefetched
         prefetchMap.current[channel] = null;
         return result;
     };
@@ -169,6 +184,7 @@ export const QuizFetchProvider = ({ children }) => {
      * Clear / invalidate any prefetch for the given channel.
      */
     const clearPrefetch = (channel) => {
+        console.log(`[QuizFetch] Cleared prefetch cache for [${channel}]`);
         prefetchMap.current[channel] = null;
         typeDecks.current[channel] = null;
     };
