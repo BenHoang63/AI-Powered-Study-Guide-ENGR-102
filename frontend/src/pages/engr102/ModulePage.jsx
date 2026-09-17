@@ -112,16 +112,6 @@ const ModulePage = () => {
                                 ))}
                             </select>
                         </div>
-
-                        {/* Direct Quizzer Link */}
-                        <button
-                            onClick={() => navigate('/engr102/topicquizzer')}
-                            className="so-btn-outline gap-1.5 text-xs text-white hover:text-white hover:border-[#800000] py-1"
-                            title="Test your knowledge on this module"
-                        >
-                            <ListChecks className="w-3.5 h-3.5 text-white" />
-                            <span className="hidden sm:inline">Practice Questions</span>
-                        </button>
                     </div>
                 </div>
             </div>
@@ -132,16 +122,12 @@ const ModulePage = () => {
                 {/* Module Hero Header */}
                 <div className="so-card p-6 sm:p-8 mb-8 border-so-border">
                     <div className="text-xs font-mono text-white mb-2 font-semibold">
-                        MODULE {currentModule.id.toString().padStart(2, '0')} OF 12 &bull; TEXAS A&M ENGR 102
+                        MODULE {currentModule.id.toString().padStart(2, '0')}
                     </div>
 
                     <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-3">
                         {currentModule.title}
                     </h1>
-
-                    <p className="text-xs sm:text-sm text-so-text-muted max-w-2xl leading-relaxed">
-                        Weekly lecture reference notes and syntax rules. Review the Python concepts and code examples below to prepare for exams and code writing assignments.
-                    </p>
 
                     {/* Pagination Controls */}
                     <div className="flex items-center justify-between pt-4 mt-5 border-t border-so-borderSubtle">
@@ -168,31 +154,31 @@ const ModulePage = () => {
                 </div>
 
                 {/* Module Body Content */}
-                <article className="so-card p-6 sm:p-10 mb-10 prose prose-invert max-w-none">
+                <article className="so-card p-6 sm:p-10 mb-10 module-content max-w-none">
                     <Component />
                 </article>
 
                 {/* Bottom Navigation & Quiz CTA */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Quiz CTA Card */}
-                    <div className="so-card p-5 border-so-border bg-[#181818] sm:col-span-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                        <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                                <ListChecks className="w-4 h-4 text-white" />
-                                <h3 className="text-sm font-semibold text-white">Finished reviewing Module {currentModule.id}?</h3>
-                            </div>
-                            <p className="text-xs text-so-text-muted">
-                                Test your understanding with multiple-choice questions and live Python code writing exercises.
-                            </p>
-                        </div>
-                        <button
-                            onClick={() => navigate('/engr102/topicquizzer')}
-                            className="so-btn-primary shrink-0 text-xs py-2 px-4"
-                        >
-                            <span>Launch Topic Quizzer</span>
-                            <ArrowRight className="w-3.5 h-3.5" />
-                        </button>
-                    </div>
+                    {/* Quiz CTA Card
+                    // <div className="so-card p-5 border-so-border bg-[#181818] sm:col-span-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    //     <div className="space-y-1">
+                    //         <div className="flex items-center gap-2">
+                    //             <ListChecks className="w-4 h-4 text-white" />
+                    //             <h3 className="text-sm font-semibold text-white">Finished reviewing Module {currentModule.id}?</h3>
+                    //         </div>
+                    //         <p className="text-xs text-so-text-muted">
+                    //             Test your understanding with multiple-choice questions and live Python code writing exercises.
+                    //         </p>
+                    //     </div>
+                    //     <button
+                    //         onClick={() => navigate('/engr102/topicquizzer')}
+                    //         className="so-btn-primary shrink-0 text-xs py-2 px-4"
+                    //     >
+                    //         <span>Launch Topic Quizzer</span>
+                    //         <ArrowRight className="w-3.5 h-3.5" />
+                    //     </button>
+                    // </div> */}
 
                     {/* Previous Module Link */}
                     {prevModule ? (

@@ -34,7 +34,6 @@
 }
 
 @layer components {
-  /* Solid Human-Crafted Minimalist Card */
   .so-card {
     @apply bg-so-card border border-so-border rounded-md shadow-so-sm transition-all duration-150;
   }
@@ -73,39 +72,164 @@
 
   /* Content & Code Elements */
   .definition {
-    @apply font-semibold text-white underline decoration-[#800000] decoration-dotted underline-offset-4 hover:decoration-solid transition-all cursor-help;
+    @apply font-semibold text-white underline decoration-white underline-offset-4 hover:decoration-solid transition-all cursor-help;
   }
 
-  .code, .code-block {
+  .code, .code-block, p.code {
     display: block;
-    background-color: #0d0d0d;
-    border: 1px solid #333333;
+    background-color: #0e0e0e;
+    border: 1px solid #2e2e2e;
     border-radius: 0.375rem;
-    padding: 1rem;
+    padding: 0.875rem 1.125rem;
     margin-top: 0.75rem;
-    margin-bottom: 0.75rem;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.875rem;
-    line-height: 1.5;
+    margin-bottom: 1rem;
+    font-family: 'JetBrains Mono', 'Courier New', Courier, monospace;
+    font-size: 0.85rem;
+    line-height: 1.55;
     color: #e2e8f0;
     overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
   }
 
-  .code .comment {
+  .code .comment, p.code .comment {
     font-style: italic;
-    color: #71717a;
+    color: #8a8a93;
   }
 
-  .module-content .block, .quote-block, .note-block {
+  /* ── Course Module Content & Typography ── */
+  .module-content h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #ffffff;
+    margin-top: 2rem;
+    margin-bottom: 0.875rem;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+  }
+
+  .module-content h2 {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #ffffff;
+    margin-top: 2.25rem;
+    margin-bottom: 0.75rem;
+    letter-spacing: -0.015em;
+    line-height: 1.3;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid #2a2a2a;
+  }
+
+  .module-content h2:first-child,
+  .module-content > div > h2:first-of-type {
+    margin-top: 0.5rem;
+  }
+
+  .module-content h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #f1f5f9;
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+    letter-spacing: -0.01em;
+    line-height: 1.35;
+  }
+
+  .module-content h4 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    margin-top: 1.25rem;
+    margin-bottom: 0.375rem;
+    line-height: 1.4;
+  }
+
+  /* Indentation for .block (and nested .block) */
+  .module-content .block,
+  .module-content .quote-block,
+  .module-content .note-block {
     display: block;
-    margin-top: 1rem;
+    margin-top: 0.625rem;
     margin-bottom: 1.5rem;
-    padding-left: 0.75rem;
-    border-left: 2px solid #333333;
-    color: #d9d3ce;
+    padding-left: 1.25rem;
+    color: #d4d4d8;
+  }
+
+  .module-content .block .block {
+    margin-top: 0.625rem;
+    margin-bottom: 1.25rem;
+    padding-left: 1.25rem;
+  }
+
+  .module-content p {
+    margin-bottom: 0.875rem;
+    line-height: 1.65;
+  }
+
+  .module-content p:last-child {
+    margin-bottom: 0;
+  }
+
+  .module-content ul {
+    list-style-type: disc;
+    padding-left: 1.5rem;
+    margin-top: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .module-content ul ul {
+    list-style-type: circle;
+    margin-top: 0.35rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .module-content ol {
+    list-style-type: decimal;
+    padding-left: 1.5rem;
+    margin-top: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .module-content li {
+    margin-bottom: 0.35rem;
+    line-height: 1.6;
+  }
+
+  .module-content li::marker {
+    color: #a1a1aa;
+  }
+
+  .module-content a {
+    color: #7aa7c7;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    transition: color 0.15s ease;
+  }
+
+  .module-content a:hover {
+    color: #ffffff;
+  }
+
+  .module-content code:not(pre code):not(.code) {
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    font-size: 0.85em;
+    background-color: #202020;
+    color: #f1f5f9;
+    border: 1px solid #333333;
+    border-radius: 0.25rem;
+    padding: 0.15rem 0.4rem;
   }
 }
 
 code {
   font-family: 'JetBrains Mono', 'Courier New', Courier, monospace;
+}
+
+@media (max-width: 640px) {
+  .module-content .block {
+    padding-left: 0.875rem;
+  }
+  .module-content .block .block {
+    padding-left: 0.75rem;
+  }
 }

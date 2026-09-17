@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { 
     BarChart3, 
@@ -11,7 +11,9 @@ import {
     AlertCircle,
     ListChecks,
     Filter,
-    Play
+    Play,
+    ChevronDown,
+    GraduationCap
 } from 'lucide-react';
 import { authClient } from '../scripts/auth';
 import { isAuthorized, isDemoMode } from '../scripts/demo';
@@ -20,6 +22,8 @@ const COURSES = [
     {
         id: 'engr102',
         label: 'ENGR 102',
+        name: 'Engineering Lab I',
+        quizzerUrl: '/engr102/topicquizzer',
         chapters: [
             { num: 1,  title: 'Intro to Computing & Python' },
             { num: 2,  title: 'Variables & Expressions' },
@@ -52,13 +56,26 @@ const BADGE_CONFIG = {
 };
 
 const UserProfile = () => {
-    const [user, setUser]                 = useState(null);
-    const [error, setError]               = useState(null);
-    const [stats, setStats]               = useState([]);
-    const [loading, setLoading]           = useState(false);
-    const [activeCourse, setActiveCourse] = useState(COURSES[0].id);
-    const [filterStatus, setFilterStatus] = useState('all'); // 'all' | 'weak' | 'strong'
+    const [user, setUser]                                 = useState(null);
+    const [error, setError]                               = useState(null);
+    const [stats, setStats]                               = useState([]);
+    const [loading, setLoading]                           = useState(false);
+    const [activeCourse, setActiveCourse]                 = useState(COURSES[0].id);
+    const [courseDropdownOpen, setCourseDropdownOpen]     = useState(false);
+    const [filterStatus, setFilterStatus]                 = useState('all'); // 'all' | 'weak' | 'strong'
+    const courseDropdownRef = useRef(null);
     const navigate = useNavigate();
+
+    // Close dropdown on click outside
+    useEffect(() => {
+        function handleClickOutside(event) {
+            if (courseDropdownRef.current && !courseDropdownRef.current.contains(event.target)) {
+                setCourseDropdownOpen(false);
+            }
+        }
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     useEffect(() => {
         authClient.getSession().then(({ data }) => {
@@ -128,33 +145,89 @@ const UserProfile = () => {
 
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div>
-                            <div className="text-xs font-mono text-so-text-muted mb-1">
-                                {user?.email || 'STUDENT RECORD'} &bull; ENGR 102
-                            </div>
+                            {/* <div className="text-xs font-mono text-so-text-muted mb-1">
+                                {user?.email || 'STUDENT RECORD'} &bull; {courseConfig?.label || 'ENGR 102'}
+                            </div> */}
                             <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
                                 Topic Mastery & Analytics
                             </h1>
                             <p className="text-xs sm:text-sm text-so-text-muted mt-1 max-w-xl leading-relaxed">
-                                Diagnostic overview of your accuracy and completion rates across all 12 Python modules to identify weak spots ahead of midterms.
+                                See what you need to work on, what you're good at, and your overall progress through the course.
                             </p>
                         </div>
 
-                        {/* Actions */}
-                        <div className="flex items-center gap-2">
+                        {/* Course Selector & Actions */}
+                        <div className="flex flex-wrap items-center gap-2.5">
+                            {/* Course Dropdown (matches Navbar courses menu UI) */}
+                            <div className="relative" ref={courseDropdownRef}>
+                                <button
+                                    onClick={() => setCourseDropdownOpen(!courseDropdownOpen)}
+                                    className="px-3 py-1.5 text-xs font-medium rounded-md bg-so-surface hover:bg-so-hover border border-so-border text-white transition-colors flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#800000]"
+                                    aria-haspopup="true"
+                                    aria-expanded={courseDropdownOpen}
+                                >
+                                    <Layers className="w-3.5 h-3.5 text-white" />
+                                    <span>Course: <strong className="text-white font-semibold">{courseConfig?.label || 'ENGR 102'}</strong></span>
+                                    <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${courseDropdownOpen ? 'rotate-180 text-white' : 'text-so-text-muted'}`} />
+                                </button>
+
+                                {courseDropdownOpen && (
+                                    <div className="absolute top-full left-0 sm:left-auto sm:right-0 mt-1.5 w-56 bg-[#1c1c1c] border border-so-border rounded-md shadow-so-md py-1.5 z-50">
+                                        <div className="px-3 py-1 text-[11px] font-semibold text-so-text-muted uppercase tracking-wider">
+                                            Select Course
+                                        </div>
+                                        {COURSES.map((course) => {
+                                            const isSelected = course.id === activeCourse;
+                                            return (
+                                                <button
+                                                    key={course.id}
+                                                    onClick={() => {
+                                                        setActiveCourse(course.id);
+                                                        setCourseDropdownOpen(false);
+                                                    }}
+                                                    className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between transition-colors ${
+                                                        isSelected
+                                                            ? 'bg-[#500000]/25 text-white border-l-2 border-[#800000]'
+                                                            : 'text-white hover:bg-so-hover hover:text-white'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        <GraduationCap className="w-4 h-4 text-white" />
+                                                        <div>
+                                                            <div className="font-medium">{course.label}</div>
+                                                            <div className="text-[10px] text-so-text-muted">{course.name || `${course.chapters.length} Modules`}</div>
+                                                        </div>
+                                                    </div>
+                                                    {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
+                                                </button>
+                                            );
+                                        })}
+
+                                        <div className="my-1 border-t border-so-borderSubtle" />
+
+                                        <div className="px-3 py-1 text-[11px] font-semibold text-so-text-muted uppercase tracking-wider">
+                                            Upcoming
+                                        </div>
+                                        <div className="px-3 py-2 text-xs text-so-text-muted flex items-center justify-between cursor-not-allowed opacity-70">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-4 h-4 rounded bg-[#242424] border border-so-borderSubtle flex items-center justify-center text-[10px] text-so-text-muted font-bold">E</div>
+                                                <div>
+                                                    <div className="font-medium text-so-text-muted">ETAM Preparation</div>
+                                                    <div className="text-[10px] text-so-text-muted">Coming Soon</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
                             <button
                                 onClick={fetchStats}
                                 disabled={loading}
                                 className="so-btn-secondary text-xs"
                             >
                                 <RotateCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-white' : ''}`} />
-                                <span>{loading ? 'Refreshing...' : 'Refresh Records'}</span>
-                            </button>
-                            <button
-                                onClick={() => navigate('/engr102/topicquizzer')}
-                                className="so-btn-primary text-xs"
-                            >
-                                <ListChecks className="w-3.5 h-3.5" />
-                                <span>Start Topic Drill</span>
+                                <span>{loading ? 'Refreshing...' : 'Refresh'}</span>
                             </button>
                         </div>
                     </div>
@@ -175,20 +248,20 @@ const UserProfile = () => {
                     <div className="so-card p-4 sm:p-5 border-so-border">
                         <div className="flex items-center justify-between text-so-text-muted mb-2">
                             <span className="text-xs font-medium">Attempted Topics</span>
-                            <BookOpen className="w-4 h-4 text-white" />
+                            {/* <BookOpen className="w-4 h-4 text-white" /> */}
                         </div>
                         <div className="text-2xl font-bold text-white tracking-tight font-mono">
                             {attempted.length}
                         </div>
                         <div className="text-[11px] text-so-text-muted mt-1">
-                            out of 12 lecture modules
+                            across {courseConfig?.chapters?.length || 12} modules
                         </div>
                     </div>
 
                     <div className="so-card p-4 sm:p-5 border-so-border">
                         <div className="flex items-center justify-between text-so-text-muted mb-2">
                             <span className="text-xs font-medium">Questions Answered</span>
-                            <Target className="w-4 h-4 text-[#7aa7c7]" />
+                            {/* <Target className="w-4 h-4 text-[#7aa7c7]" /> */}
                         </div>
                         <div className="text-2xl font-bold text-white tracking-tight font-mono">
                             {totalAttempts}
@@ -201,7 +274,7 @@ const UserProfile = () => {
                     <div className="so-card p-4 sm:p-5 border-so-border">
                         <div className="flex items-center justify-between text-so-text-muted mb-2">
                             <span className="text-xs font-medium">Cumulative Accuracy</span>
-                            <BarChart3 className="w-4 h-4 text-amber-400" />
+                            {/* <BarChart3 className="w-4 h-4 text-amber-400" /> */}
                         </div>
                         <div className="text-2xl font-bold text-white tracking-tight font-mono">
                             {overallAcc !== null ? `${overallAcc}%` : '—'}
@@ -214,7 +287,7 @@ const UserProfile = () => {
                     <div className="so-card p-4 sm:p-5 border-so-border">
                         <div className="flex items-center justify-between text-so-text-muted mb-2">
                             <span className="text-xs font-medium">Topics Mastered</span>
-                            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                            {/* <CheckCircle2 className="w-4 h-4 text-emerald-400" /> */}
                         </div>
                         <div className="text-2xl font-bold text-emerald-400 tracking-tight font-mono">
                             {strongCount}
@@ -262,27 +335,27 @@ const UserProfile = () => {
                     </div>
 
                     <div className="text-xs text-so-text-muted font-mono">
-                        Showing ENGR 102 Coursework
+                        Showing {courseConfig?.label || 'ENGR 102'} Coursework
                     </div>
                 </div>
 
                 {/* Empty State */}
                 {!loading && attempted.length === 0 && (
                     <div className="so-card p-8 text-center border-so-border max-w-lg mx-auto my-8">
-                        <div className="w-10 h-10 rounded bg-so-surface border border-so-border flex items-center justify-center mx-auto mb-3">
+                        {/* <div className="w-10 h-10 rounded bg-so-surface border border-so-border flex items-center justify-center mx-auto mb-3">
                             <ListChecks className="w-5 h-5 text-white" />
-                        </div>
+                        </div> */}
                         <h3 className="text-sm font-bold text-white mb-1.5">
                             No Quiz History Recorded
                         </h3>
                         <p className="text-xs text-so-text-muted mb-5 max-w-sm mx-auto leading-relaxed">
-                            Submissions from the Topic Quizzer and Exam Review sandboxes will automatically populate your mastery analytics here.
+                            Submissions from the {courseConfig?.label || 'course'} Topic Quizzer and Exam Review sandboxes will automatically populate your mastery analytics here.
                         </p>
                         <button
-                            onClick={() => navigate('/engr102/topicquizzer')}
+                            onClick={() => navigate(courseConfig?.quizzerUrl || '/engr102/topicquizzer')}
                             className="so-btn-primary text-xs"
                         >
-                            <span>Open Topic Quizzer</span>
+                            <span>Open {courseConfig?.label ? `${courseConfig.label} ` : ''}Topic Quizzer</span>
                             <ArrowRight className="w-3.5 h-3.5" />
                         </button>
                     </div>

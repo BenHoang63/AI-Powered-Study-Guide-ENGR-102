@@ -144,6 +144,7 @@ const ENGR102TopicQuizzer = () => {
         catch { return [1,1,"topic",{},null,false,false,false]; }
     });
     const [nextQuestion, setNextQuestion] = useState([1,1,"topic",{},null,false,false,false]); 
+    const [answerRevealed, setAnswerRevealed] = useState(false); 
 
     // Code writing line numbers refs and state
     const lineNumbersRef = useRef(null);
@@ -406,6 +407,7 @@ const ENGR102TopicQuizzer = () => {
             const blank = [1, 1, "topic", {}, null, false, false, false];
             setCurrentQuestion(blank);
             setNextQuestion(blank);
+            setAnswerRevealed(false);
             sessionStorage.removeItem('quizzer_currentQuestion');
             sessionStorage.setItem('quizzer_quizMode', 'false');
             clearPrefetch('topicQuizzer');
@@ -481,6 +483,7 @@ const ENGR102TopicQuizzer = () => {
     // start question setup
     const start_question_setup = (qData = currentQuestion) => {
         if (!qData || !qData[3]) return;
+        setAnswerRevealed(false);
         const questionType = qData[3].type;
         // console.log('starting question setup...');
         if (questionType === 'multiple_choice') { mc_setup(qData); }
@@ -541,6 +544,11 @@ const ENGR102TopicQuizzer = () => {
             document.getElementById('explanation').hidden = false;
             document.getElementById('submit').hidden = true;
             document.getElementById('next-question').hidden = false;
+            const showAnsBtn = document.getElementById('show-answer');
+            if (showAnsBtn) {
+                showAnsBtn.hidden = true;
+                showAnsBtn.style.display = 'none';
+            }
             handleAnswerAttempt(true);
         }
         else {
@@ -587,7 +595,10 @@ const ENGR102TopicQuizzer = () => {
         }
         document.getElementById('next-question').hidden = true;
         const showAnsBtn = document.getElementById('show-answer');
-        if (showAnsBtn) showAnsBtn.hidden = false;
+        if (showAnsBtn) {
+            showAnsBtn.hidden = false;
+            showAnsBtn.style.display = 'block';
+        }
     };
 
     const cleanAnswerStr = (s) => (s || "")
@@ -615,7 +626,10 @@ const ENGR102TopicQuizzer = () => {
             document.getElementById('submit').hidden = true;
             document.getElementById('next-question').hidden = false;
             const showAnsBtn = document.getElementById('show-answer');
-            if (showAnsBtn) showAnsBtn.hidden = true;
+            if (showAnsBtn) {
+                showAnsBtn.hidden = true;
+                showAnsBtn.style.display = 'none';
+            }
             handleAnswerAttempt(true);
         } else {
             setExplanationText("Incorrect. Try again.");
@@ -790,6 +804,11 @@ const ENGR102TopicQuizzer = () => {
                 document.getElementById('explanation').hidden = false;
                 document.getElementById('submit').hidden = true;
                 document.getElementById('next-question').hidden = false;
+                const showAnsBtn = document.getElementById('show-answer');
+                if (showAnsBtn) {
+                    showAnsBtn.hidden = true;
+                    showAnsBtn.style.display = 'none';
+                }
                 handleAnswerAttempt(true);
                 clearCwCooldown();
             } else {
@@ -849,7 +868,10 @@ const ENGR102TopicQuizzer = () => {
         if (nextBtn) nextBtn.hidden = true;
 
         const showAnsBtn = document.getElementById('show-answer');
-        if (showAnsBtn) showAnsBtn.hidden = false;
+        if (showAnsBtn) {
+            showAnsBtn.hidden = false;
+            showAnsBtn.style.display = 'block';
+        }
     };
 
     const ma_select = (choice) => {
@@ -892,7 +914,10 @@ const ENGR102TopicQuizzer = () => {
             document.getElementById('submit').hidden = true;
             document.getElementById('next-question').hidden = false;
             const showAnsBtn = document.getElementById('show-answer');
-            if (showAnsBtn) showAnsBtn.hidden = true;
+            if (showAnsBtn) {
+                showAnsBtn.hidden = true;
+                showAnsBtn.style.display = 'none';
+            }
             handleAnswerAttempt(true);
         } else {
             setExplanationText("Incorrect. Try again.");
@@ -906,6 +931,8 @@ const ENGR102TopicQuizzer = () => {
     const handleShowAnswer = () => {
         const qData = currentQuestion[3];
         if (!qData) return;
+
+        setAnswerRevealed(true);
 
         // Disqualify: record as incorrect (1 attempt, 0 correct) and mark failed
         handleAnswerAttempt(false);
@@ -934,7 +961,10 @@ const ENGR102TopicQuizzer = () => {
         document.getElementById('next-question').hidden = false;
 
         const showAnsBtn = document.getElementById('show-answer');
-        if (showAnsBtn) showAnsBtn.hidden = true;
+        if (showAnsBtn) {
+            showAnsBtn.hidden = true;
+            showAnsBtn.style.display = 'none';
+        }
     };
 
 
@@ -1070,6 +1100,7 @@ const ENGR102TopicQuizzer = () => {
                             const blank = [1, 1, "topic", {}, null, false, false, false];
                             setCurrentQuestion(blank);
                             setNextQuestion(blank);
+                            setAnswerRevealed(false);
                             sessionStorage.removeItem('quizzer_currentQuestion');
                             toggleUI();
                             const qData = await getQuestion(false, true);
@@ -1287,7 +1318,7 @@ const ENGR102TopicQuizzer = () => {
                     </button>
 
                     {/* Show Answer button for short answer and multiple answer */}
-                    {(currentQuestion[3]?.type === 'short_answer' || currentQuestion[3]?.type === 'multiple_answer') && (
+                    {(currentQuestion[3]?.type === 'short_answer' || currentQuestion[3]?.type === 'multiple_answer') && !currentQuestion[5] && !answerRevealed && (
                         <button
                             id='show-answer'
                             className='toggle-all-btn'
@@ -1305,6 +1336,7 @@ const ENGR102TopicQuizzer = () => {
                         onClick={ async () => {
                             clearCwCooldown();
                             setCheckingCode(false);
+                            setAnswerRevealed(false);
                             // Clear question immediately so it disappears right away
                             setCurrentQuestion(prev => [prev[0], prev[1], prev[2], {}, null, false, false, false]);
                             const nextBtn = document.getElementById('next-question');
@@ -1312,7 +1344,10 @@ const ENGR102TopicQuizzer = () => {
                             const sub = document.getElementById('submit');
                             if (sub) sub.hidden = false;
                             const showAns = document.getElementById('show-answer');
-                            if (showAns) showAns.hidden = true;
+                            if (showAns) {
+                                showAns.hidden = true;
+                                showAns.style.display = 'none';
+                            }
                             const exp = document.getElementById('explanation');
                             if (exp) exp.hidden = true;
                             const qData = await getQuestion();

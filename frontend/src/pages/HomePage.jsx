@@ -54,9 +54,9 @@ const HomePage = () => {
                         className="so-card p-6 border-so-border hover:border-[#500000] hover:bg-[#1a1a1a] active:scale-[0.99] transition-all text-left flex flex-col justify-between group focus:outline-none focus-visible:ring-2 focus-visible:ring-[#800000] cursor-pointer"
                     >
                         <div>
-                            <div className="w-11 h-11 rounded-lg bg-[#222222] border border-so-border flex items-center justify-center mb-4 text-white group-hover:border-[#500000] group-hover:bg-[#500000]/20 transition-colors">
+                            {/* <div className="w-11 h-11 rounded-lg bg-[#222222] border border-so-border flex items-center justify-center mb-4 text-white group-hover:border-[#500000] group-hover:bg-[#500000]/20 transition-colors">
                                 <GraduationCap className="w-5 h-5 text-white" />
-                            </div>
+                            </div> */}
 
                             <div className="text-lg font-bold text-white group-hover:text-white transition-colors">
                                 ENGR 102
@@ -77,9 +77,9 @@ const HomePage = () => {
                         className="so-card p-6 border-so-border bg-[#181818]/60 opacity-60 text-left flex flex-col justify-between cursor-not-allowed select-none"
                     >
                         <div>
-                            <div className="w-11 h-11 rounded-lg bg-[#222222] border border-so-border flex items-center justify-center mb-4 text-so-text-muted">
+                            {/* <div className="w-11 h-11 rounded-lg bg-[#222222] border border-so-border flex items-center justify-center mb-4 text-so-text-muted">
                                 <Compass className="w-5 h-5 text-so-text-muted" />
-                            </div>
+                            </div> */}
 
                             <div className="text-lg font-bold text-white/80">
                                 ETAM
