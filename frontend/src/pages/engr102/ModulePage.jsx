@@ -72,8 +72,8 @@ const ModulePage = () => {
     if (loading) {
         return (
             <div className="min-h-[70vh] flex items-center justify-center">
-                <div className="flex items-center gap-3 text-so-text-muted text-sm">
-                    <div className="w-5 h-5 border-2 border-[#500000] border-t-transparent rounded-full animate-spin" />
+                <div className="flex items-center gap-3 text-white text-sm">
+                    <div className="w-5 h-5 border-2 border-[#990000] border-t-transparent rounded-full animate-spin" />
                     <span>Loading Module {currentModule.id}...</span>
                 </div>
             </div>
@@ -90,9 +90,9 @@ const ModulePage = () => {
                     
                     {/* Breadcrumbs */}
                     <div className="flex items-center gap-2 text-xs text-so-text-muted font-mono">
-                        <Link to="/home" className="hover:text-white transition-colors">Home</Link>
+                        <Link to="/home" className="hover:text-slate-900 dark:hover:text-white transition-colors">Home</Link>
                         <span>/</span>
-                        <Link to="/engr102" className="hover:text-white transition-colors">ENGR 102</Link>
+                        <Link to="/engr102" className="hover:text-slate-900 dark:hover:text-white transition-colors">ENGR 102</Link>
                         <span>/</span>
                         <span className="text-white font-semibold">Module {currentModule.id}</span>
                     </div>
@@ -103,7 +103,7 @@ const ModulePage = () => {
                             <select
                                 value={currentModule.id}
                                 onChange={(e) => navigate(`/engr102/module${e.target.value}`)}
-                                className="bg-so-surface border border-so-border text-xs text-white rounded px-2.5 py-1 focus:outline-none focus:border-[#800000] cursor-pointer hover:bg-so-hover transition-colors"
+                                className="bg-so-surface border border-so-border text-xs text-white rounded px-2.5 py-1 focus:outline-none focus:border-[#990000] cursor-pointer hover:bg-so-hover transition-colors"
                             >
                                 {MODULES.map((m) => (
                                     <option key={m.id} value={m.id} className="bg-so-card text-white">
@@ -134,7 +134,7 @@ const ModulePage = () => {
                         {prevModule ? (
                             <button
                                 onClick={() => navigate(`/engr102/module${prevModule.id}`)}
-                                className="inline-flex items-center gap-1.5 text-xs font-medium text-so-text-body hover:text-white transition-colors"
+                                className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700 dark:text-so-text-body hover:text-slate-900 dark:hover:text-white transition-colors"
                             >
                                 <ChevronLeft className="w-4 h-4" />
                                 <span>Prev: Mod {prevModule.id}</span>
@@ -144,7 +144,7 @@ const ModulePage = () => {
                         {nextModule ? (
                             <button
                                 onClick={() => navigate(`/engr102/module${nextModule.id}`)}
-                                className="inline-flex items-center gap-1.5 text-xs font-medium text-so-text-body hover:text-white transition-colors"
+                                className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700 dark:text-so-text-body hover:text-slate-900 dark:hover:text-white transition-colors"
                             >
                                 <span>Next: Mod {nextModule.id}</span>
                                 <ChevronRight className="w-4 h-4" />
@@ -188,11 +188,11 @@ const ModulePage = () => {
                         >
                             <div>
                                 <div className="text-[11px] text-so-text-muted">← Previous Module</div>
-                                <div className="text-xs font-semibold text-white group-hover:text-white transition-colors">
+                                <div className="text-xs font-semibold text-slate-800 dark:text-white group-hover:text-slate-900 dark:group-hover:text-white transition-colors">
                                     Module {prevModule.id}: {prevModule.title}
                                 </div>
                             </div>
-                            <ChevronLeft className="w-4 h-4 text-so-text-muted group-hover:text-white transition-colors" />
+                            <ChevronLeft className="w-4 h-4 text-so-text-muted group-hover:text-slate-900 dark:group-hover:text-white transition-colors" />
                         </button>
                     ) : <div />}
 
@@ -204,11 +204,11 @@ const ModulePage = () => {
                         >
                             <div>
                                 <div className="text-[11px] text-so-text-muted text-right">Next Module →</div>
-                                <div className="text-xs font-semibold text-white group-hover:text-white transition-colors">
+                                <div className="text-xs font-semibold text-slate-800 dark:text-white group-hover:text-slate-900 dark:group-hover:text-white transition-colors">
                                     Module {nextModule.id}: {nextModule.title}
                                 </div>
                             </div>
-                            <ChevronRight className="w-4 h-4 text-so-text-muted group-hover:text-white transition-colors" />
+                            <ChevronRight className="w-4 h-4 text-so-text-muted group-hover:text-slate-900 dark:group-hover:text-white transition-colors" />
                         </button>
                     ) : <div />}
                 </div>

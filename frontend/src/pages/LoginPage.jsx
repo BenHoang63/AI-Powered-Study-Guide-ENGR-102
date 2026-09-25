@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Terminal, BookOpen, ShieldCheck, ArrowRight, CheckCircle2, Code2 } from 'lucide-react';
 import { authClient } from '../scripts/auth';
 import { enableDemoMode, isAuthorized } from '../scripts/demo';
+import Footer from '../components/Footer.jsx';
+import ThemeToggle from '../components/ThemeToggle.jsx';
 
 const LoginPage = () => {
     const [user, setUser] = useState(null);
@@ -48,6 +50,7 @@ const LoginPage = () => {
         authClient.getSession().then(({ data }) => {
             if (data?.user) {
                 if (isAuthorized(data.user.email)) {
+                    sessionStorage.removeItem('engr102_demo_mode');
                     setUser(data.user);
                     navigate('/home');
                 } else {
@@ -64,15 +67,13 @@ const LoginPage = () => {
             {/* Header branding */}
             <header className="max-w-4xl mx-auto w-full flex items-center justify-between py-4 border-b border-so-border">
                 <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded bg-[#500000] border border-[#6b0000] flex items-center justify-center">
-                        <span className="text-white font-bold text-base tracking-tighter">≡</span>
-                    </div>
                     <div>
                         <div className="font-semibold text-white tracking-tight text-sm">
                             ENGR Study Helper
                         </div>
                     </div>
                 </div>
+                <ThemeToggle />
             </header>
 
             {/* Main Institutional Portal Card */}
@@ -83,7 +84,10 @@ const LoginPage = () => {
                     <div className="border-b border-so-border pb-5 mb-6">
                         <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
                             Student Authentication
-                        </h1>
+                        </h1><br></br>
+                        <div className="text-xs text-so-text-muted">
+                            By signing in, you agree to our <Link to="/privacy-policy" className="text-blue-400 hover:text-blue-300 underline underline-offset-2 inline-flex items-center gap-1">Privacy Policy</Link> and <Link to="/terms-conditions" className="text-blue-400 hover:text-blue-300 underline underline-offset-2 inline-flex items-center gap-1">Terms & Conditions</Link>.
+                        </div>
                     </div>
 
                     {error && (
@@ -119,7 +123,7 @@ const LoginPage = () => {
                             <button
                                 onClick={handleGoogleSignIn}
                                 disabled={isLoading}
-                                className="w-full flex items-center justify-center gap-3 py-2 px-4 rounded-md text-xs font-semibold text-white bg-[#222222] hover:bg-[#2b2b2b] active:bg-[#1a1a1a] border border-so-border shadow-so-sm transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#800000] disabled:opacity-50 group"
+                                className="w-full flex items-center justify-center gap-3 py-2 px-4 rounded-md text-xs font-semibold text-slate-800 dark:text-white bg-white hover:bg-slate-50 active:bg-slate-100 dark:bg-[#222222] dark:hover:bg-[#2b2b2b] dark:active:bg-[#1a1a1a] border border-slate-300 dark:border-so-border shadow-so-sm transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#990000] disabled:opacity-50 group"
                             >
                                 <svg className="w-4 h-4" viewBox="0 0 24 24">
                                     <path
@@ -146,15 +150,8 @@ const LoginPage = () => {
                 </div>
             </main>
 
-            {/* Institutional Disclaimer Footer */}
-            <footer className="max-w-2xl mx-auto text-center text-xs text-so-text-muted py-4 space-y-1">
-                <p>
-                    Supplemental engineering study tool developed for Texas A&M ENGR 102 students.
-                </p>
-                <p className="text-[11px] text-so-text-muted/60">
-                    Not affiliated with or officially endorsed by Texas A&M University.
-                </p>
-            </footer>
+            {/* Institutional Disclaimer & Legal Footer */}
+            <Footer className="border-t-0 py-4" />
         </div>
     );
 };

@@ -16,10 +16,10 @@ TODO:
     • [x] turn this project into an RAG-based system!
     • [x] for code_writing, make sure the user doesn't spam submit
     • [x] new UI for entire website
-    • Privacy policy
-    • terms and conditions page
-    • 404 page
-    • cookie policy
+    • [x] Privacy policy
+    • [x] terms and conditions page
+    • [x] 404 page
+    • [x] cookie policy
     • make sure this is accessible to everyone
     • [x] selectable class for progress page
     • explain this question to me

@@ -30,30 +30,24 @@ const StdinTutorialPage = () => {
 
     return (
         <div className="min-h-screen bg-so-bg text-so-text-body pb-24">
-            {/* Top brand accent stripe */}
-            <div className="h-0.5 bg-[#500000]" />
-
             {/* Header / Breadcrumb */}
             <div className="border-b border-so-border bg-[#161616] py-8 px-4 sm:px-6">
                 <div className="max-w-4xl mx-auto">
                     <div className="flex items-center gap-2 text-xs text-so-text-muted mb-3 font-mono">
-                        <Link to="/home" className="hover:text-white transition-colors">Home</Link>
+                        <Link to="/home" className="hover:text-slate-900 dark:hover:text-white transition-colors">Home</Link>
                         <span>/</span>
-                        <Link to="/engr102" className="hover:text-white transition-colors">ENGR 102</Link>
+                        <Link to="/engr102" className="hover:text-slate-900 dark:hover:text-white transition-colors">ENGR 102</Link>
                         <span>/</span>
                         <span className="text-white font-semibold">WebAssembly Python STDIN</span>
                     </div>
 
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div>
-                            <div className="text-xs font-mono text-so-text-muted mb-1">
-                                PYODIDE RUNTIME DOCUMENTATION &bull; ENGR 102
-                            </div>
                             <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
                                 Standard Input (stdin) Guide
                             </h1>
                             <p className="text-xs sm:text-sm text-so-text-muted mt-1.5 max-w-xl leading-relaxed">
-                                Because Python runs directly in your browser without a backend server, all input values must be supplied upfront through the stdin buffer before execution.
+                                Basically, stdin is giving your program input values before it starts running.
                             </p>
                         </div>
 
@@ -73,16 +67,16 @@ const StdinTutorialPage = () => {
                 {/* Rule Card */}
                 <div className="so-card p-6 border-so-border">
                     <div className="flex items-start gap-3.5">
-                        <div className="w-8 h-8 rounded bg-so-surface border border-so-border flex items-center justify-center shrink-0 mt-0.5">
+                        {/* <div className="w-8 h-8 rounded bg-so-surface border border-so-border flex items-center justify-center shrink-0 mt-0.5">
                             <CornerDownLeft className="w-4 h-4 text-white" />
-                        </div>
+                        </div> */}
                         <div>
                             <h2 className="text-sm font-bold text-white mb-1">
                                 Core Rule for Browser STDIN
                             </h2>
                             <p className="text-xs text-so-text-body leading-relaxed">
-                                Supply <strong>one value per line</strong> in the exact order that <code className="bg-[#0f0f0f] border border-[#2d2d2d] px-1 py-0.5 rounded text-white font-mono">input()</code> is evaluated.
-                                Each <code className="bg-[#0f0f0f] border border-[#2d2d2d] px-1 py-0.5 rounded text-white font-mono">input()</code> call pops the next line from the buffer.
+                                Supply <strong>one value per line</strong> in the exact order that <code className="bg-slate-100 dark:bg-[#0f0f0f] border border-slate-200 dark:border-[#2d2d2d] px-1.5 py-0.5 rounded text-slate-800 dark:text-white font-mono text-xs">input()</code> is evaluated.
+                                Each <code className="bg-slate-100 dark:bg-[#0f0f0f] border border-slate-200 dark:border-[#2d2d2d] px-1.5 py-0.5 rounded text-slate-800 dark:text-white font-mono text-xs">input()</code> call uses the next line from the stdin.
                             </p>
                         </div>
                     </div>
@@ -111,7 +105,7 @@ const StdinTutorialPage = () => {
                                         <div className="text-[11px] font-mono uppercase text-so-text-muted">
                                             Python Source
                                         </div>
-                                        <div className="bg-[#0c0c0c] border border-so-border rounded-md p-3.5 font-mono text-xs text-[#e2e8f0] overflow-x-auto">
+                                        <div className="bg-slate-50 dark:bg-[#0c0c0c] border border-slate-200 dark:border-so-border rounded-md p-3.5 font-mono text-xs text-slate-800 dark:text-[#e2e8f0] overflow-x-auto">
                                             <pre>{ex.code}</pre>
                                         </div>
                                     </div>
@@ -121,7 +115,7 @@ const StdinTutorialPage = () => {
                                         <div className="text-[11px] font-mono uppercase text-so-text-muted">
                                             Stdin Values
                                         </div>
-                                        <div className="bg-[#121212] border border-so-border rounded-md p-3 font-mono text-xs text-emerald-400 min-h-[78px] flex items-center">
+                                        <div className="bg-emerald-50/70 dark:bg-[#121212] border border-emerald-200 dark:border-so-border rounded-md p-3 font-mono text-xs text-emerald-800 dark:text-emerald-400 min-h-[78px] flex items-center">
                                             <pre>{ex.stdin}</pre>
                                         </div>
                                     </div>
@@ -132,7 +126,7 @@ const StdinTutorialPage = () => {
                                     <div className="text-[11px] font-mono uppercase text-so-text-muted mb-1.5">
                                         Terminal Output
                                     </div>
-                                    <div className="bg-[#0a0a0a] border border-neutral-800 rounded p-3 font-mono text-xs text-neutral-300">
+                                    <div className="bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-neutral-800 rounded p-3 font-mono text-xs text-slate-800 dark:text-neutral-300">
                                         <pre>{ex.output}</pre>
                                     </div>
                                 </div>
@@ -144,27 +138,27 @@ const StdinTutorialPage = () => {
                 {/* Common Pitfalls Card */}
                 <div className="so-card p-6 border-so-border">
                     <h2 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
-                        <AlertTriangle className="w-4 h-4 text-amber-400" />
+                        {/* <AlertTriangle className="w-4 h-4 text-amber-400" /> */}
                         <span>Common Stdin Mistakes to Avoid</span>
                     </h2>
 
                     <ul className="space-y-2.5 text-xs text-so-text-body">
                         <li className="flex items-start gap-2">
-                            <span className="text-red-400 font-bold">•</span>
+                            <span className="text-400 font-bold">•</span>
                             <div>
-                                <strong className="text-white">Leaving Stdin empty:</strong> If your code calls <code className="text-white font-mono">input()</code> but Stdin is blank, Python raises an <code className="text-red-400 font-mono">EOFError: EOF when reading a line</code>.
+                                <strong className="text-white">Leaving Stdin empty:</strong> If your code calls <code className="bg-slate-100 dark:bg-so-surface border border-slate-200 dark:border-so-border px-1.5 py-0.5 rounded text-slate-800 dark:text-white font-mono text-xs">input()</code> but Stdin is blank, Python raises an <code className="bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 px-1.5 py-0.5 rounded text-rose-700 dark:text-rose-400 font-mono text-xs">EOFError: EOF when reading a line</code>.
                             </div>
                         </li>
                         <li className="flex items-start gap-2">
-                            <span className="text-red-400 font-bold">•</span>
+                            <span className="text-400 font-bold">•</span>
                             <div>
-                                <strong className="text-white">Providing too few lines:</strong> If you have 3 prompts but only provide 2 lines, the 3rd prompt crashes with an <code className="text-red-400 font-mono">EOFError</code>.
+                                <strong className="text-white">Providing too few lines:</strong> If you have 3 prompts but only provide 2 lines, the 3rd prompt crashes with an <code className="bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 px-1.5 py-0.5 rounded text-rose-700 dark:text-rose-400 font-mono text-xs">EOFError</code>.
                             </div>
                         </li>
                         <li className="flex items-start gap-2">
-                            <span className="text-amber-400 font-bold">•</span>
+                            <span className="text-400 font-bold">•</span>
                             <div>
-                                <strong className="text-white">Forgetting type conversion:</strong> Stdin values are always read as strings. Remember to wrap them in <code className="text-white font-mono">int()</code> or <code className="text-white font-mono">float()</code> if you need numbers.
+                                <strong className="text-white">Forgetting type conversion:</strong> Stdin values are always read as strings. Remember to wrap them in <code className="bg-slate-100 dark:bg-so-surface border border-slate-200 dark:border-so-border px-1.5 py-0.5 rounded text-slate-800 dark:text-white font-mono text-xs">int()</code> or <code className="bg-slate-100 dark:bg-so-surface border border-slate-200 dark:border-so-border px-1.5 py-0.5 rounded text-slate-800 dark:text-white font-mono text-xs">float()</code> if you need numbers.
                             </div>
                         </li>
                     </ul>

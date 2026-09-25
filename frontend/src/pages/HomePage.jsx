@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { GraduationCap, Compass, ArrowRight } from 'lucide-react';
 import { authClient } from '../scripts/auth';
 import { isAuthorized, isDemoMode } from '../scripts/demo';
+import Footer from '../components/Footer.jsx';
 
 const HomePage = () => {
     const [user, setUser] = useState(null);
@@ -31,8 +32,8 @@ const HomePage = () => {
     const displayName = user?.name || (isDemoMode() ? "Engineering Aggie" : "Student");
 
     return (
-        <div className="min-h-[calc(100vh-3.5rem)] bg-so-bg text-so-text-body flex flex-col justify-center items-center px-4 py-12">
-            <div className="max-w-2xl w-full">
+        <div className="min-h-[calc(100vh-3.5rem)] bg-so-bg text-so-text-body flex flex-col justify-between items-center px-4 pt-12">
+            <div className="max-w-2xl w-full my-auto">
                 {/* Header */}
                 <div className="text-center mb-8">
                     {/* <div className="inline-block text-[11px] font-semibold text-white/50 tracking-wider uppercase mb-1.5">
@@ -51,10 +52,10 @@ const HomePage = () => {
                     {/* ENGR 102 Button */}
                     <button
                         onClick={() => navigate('/engr102')}
-                        className="so-card p-6 border-so-border hover:border-[#500000] hover:bg-[#1a1a1a] active:scale-[0.99] transition-all text-left flex flex-col justify-between group focus:outline-none focus-visible:ring-2 focus-visible:ring-[#800000] cursor-pointer"
+                        className="so-card p-6 border-so-border hover:border-[#800000] hover:bg-slate-50 dark:hover:bg-[#1a1a1a] active:scale-[0.99] transition-all text-left flex flex-col justify-between group focus:outline-none focus-visible:ring-2 focus-visible:ring-[#800000] cursor-pointer"
                     >
                         <div>
-                            {/* <div className="w-11 h-11 rounded-lg bg-[#222222] border border-so-border flex items-center justify-center mb-4 text-white group-hover:border-[#500000] group-hover:bg-[#500000]/20 transition-colors">
+                            {/* <div className="w-11 h-11 rounded-lg bg-[#222222] border border-so-border flex items-center justify-center mb-4 text-white group-hover:border-[#990000] group-hover:bg-[#990000]/20 transition-colors">
                                 <GraduationCap className="w-5 h-5 text-white" />
                             </div> */}
 
@@ -74,24 +75,24 @@ const HomePage = () => {
 
                     {/* ETAM Button */}
                     <div
-                        className="so-card p-6 border-so-border bg-[#181818]/60 opacity-60 text-left flex flex-col justify-between cursor-not-allowed select-none"
+                        className="so-card p-6 border-so-border bg-slate-100/70 dark:bg-[#181818]/60 text-left flex flex-col justify-between cursor-not-allowed select-none"
                     >
                         <div>
                             {/* <div className="w-11 h-11 rounded-lg bg-[#222222] border border-so-border flex items-center justify-center mb-4 text-so-text-muted">
                                 <Compass className="w-5 h-5 text-so-text-muted" />
                             </div> */}
 
-                            <div className="text-lg font-bold text-white/80">
+                            <div className="text-lg font-bold text-slate-800 dark:text-white/80">
                                 ETAM
                             </div>
-                            <div className="text-xs text-so-text-muted mt-1">
+                            <div className="text-xs text-slate-500 dark:text-so-text-muted mt-1">
                                 Entry to a Major Resources
                             </div>
                         </div>
 
-                        <div className="mt-8 pt-4 border-t border-so-borderSubtle flex items-center justify-between text-xs font-medium text-so-text-muted">
+                        <div className="mt-8 pt-4 border-t border-so-borderSubtle flex items-center justify-between text-xs font-medium text-slate-500 dark:text-so-text-muted">
                             <span>Coming Soon</span>
-                            <span className="text-[10px] px-2 py-0.5 rounded bg-[#202020] border border-so-border">In Development</span>
+                            <span className="text-[10px] px-2 py-0.5 rounded bg-slate-200 dark:bg-[#202020] text-slate-600 dark:text-so-text-muted border border-slate-300 dark:border-so-border">In Development</span>
                         </div>
                     </div>
                 </div>
@@ -102,6 +103,8 @@ const HomePage = () => {
                     </div>
                 )}
             </div>
+
+            <Footer className="mt-12" />
         </div>
     );
 };

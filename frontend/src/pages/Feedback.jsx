@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { authClient } from '../scripts/auth';
 import { isAuthorized, isDemoMode } from '../scripts/demo';
+import Footer from '../components/Footer.jsx';
 
 const CATEGORIES = [
     { value: 'bug',        label: 'Bug Report' },
@@ -106,26 +107,26 @@ const FeedbackPage = () => {
     };
 
     return (
-        <div className="min-h-screen bg-so-bg text-so-text-body pb-24">
+        <div className="min-h-screen bg-so-bg text-so-text-body flex flex-col justify-between">
             
             {/* Header / Breadcrumb */}
             <div className="border-b border-so-border bg-[#161616] py-8 px-4 sm:px-6">
                 <div className="max-w-2xl mx-auto">
                     <div className="flex items-center gap-2 text-xs text-so-text-muted mb-3 font-mono">
-                        <Link to="/home" className="hover:text-white transition-colors">Home</Link>
+                        <Link to="/home" className="hover:text-slate-900 dark:hover:text-white transition-colors">Home</Link>
                         <span>/</span>
                         <span className="text-white font-medium">Feedback</span>
                     </div>
                     <div className="flex items-center gap-3 mb-2">
-                        <div className="w-8 h-8 rounded-md bg-[#202020] border border-so-border flex items-center justify-center shrink-0">
+                        {/* <div className="w-8 h-8 rounded-md bg-[#202020] border border-so-border flex items-center justify-center shrink-0">
                             <MessageSquare className="w-4 h-4 text-white" />
-                        </div>
+                        </div> */}
                         <h1 className="text-2xl font-bold text-white tracking-tight">
                             Feedback & Suggestions
                         </h1>
                     </div>
                     <p className="text-xs sm:text-sm text-so-text-muted">
-                        This is an independent personal project created for Aggie engineers. Any bug reports, feature suggestions, or study note corrections are greatly appreciated!
+                        Hi, thanks for using my study tool! This is a personal project I built, and so I assume it has many flaws. Any feedback, suggestions, or bug reports would be greatly appreciated. 
                     </p>
                 </div>
             </div>
@@ -232,13 +233,13 @@ const FeedbackPage = () => {
 
                         {/* Action buttons */}
                         <div className="flex items-center justify-between pt-2">
-                            <button
+                            {/* <button
                                 type="button"
                                 onClick={() => navigate(-1)}
                                 className="so-btn-outline text-xs"
                             >
                                 Cancel
-                            </button>
+                            </button> */}
 
                             <button
                                 id="feedback-submit"
@@ -258,7 +259,7 @@ const FeedbackPage = () => {
                                     </>
                                 ) : (
                                     <>
-                                        <Send className="w-3.5 h-3.5" />
+                                        {/* <Send className="w-3.5 h-3.5" /> */}
                                         <span>Send Feedback</span>
                                     </>
                                 )}
@@ -267,6 +268,8 @@ const FeedbackPage = () => {
                     </form>
                 </div>
             </main>
+
+            <Footer className="mt-12" />
         </div>
     );
 };

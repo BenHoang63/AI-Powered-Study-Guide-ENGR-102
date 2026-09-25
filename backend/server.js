@@ -30,7 +30,7 @@ app.use((req, res, next) => {
 		res.header("Vary", "Origin");
 	} // else: no CORS header → browser blocks the request
 	res.header("Access-Control-Allow-Headers", "Content-Type");
-	res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+	res.header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
 	if (req.method === "OPTIONS") return res.sendStatus(200);
 	next();
 });
@@ -812,6 +812,46 @@ app.post("/api/feedback", async (req, res) => {
 });
 
 
+// ============================ topic availability ============================ //
+
+// Returns which chapters have content in the database for a given course.
+// Course-agnostic: works for engr102 today, and any future course added to COURSE_TABLE_MAP.
+app.get("/api/:course/topics/availability", async (req, res) => {
+	const course = req.params.course.toLowerCase();
+	const topicsTable = COURSE_TABLE_MAP[course];
+	if (!topicsTable) {
+		return res.status(400).json({ error: `Unknown course: '${course}'. Supported: ${Object.keys(COURSE_TABLE_MAP).join(", ")}` });
+	}
+
+	try {
+		// Fast path: use the in-memory cache for engr102
+		if (course === "engr102") {
+			const topicsMap = await getCachedTopics();
+			if (topicsMap) {
+				const availability = {};
+				for (const [chapter, topics] of topicsMap.entries()) {
+					availability[chapter] = topics.length > 0;
+				}
+				return res.json({ course, availability });
+			}
+		}
+
+		// Fallback: live DB query (for future courses or if cache is empty)
+		const result = await pool.query(
+			`SELECT chapter, COUNT(*) AS topic_count FROM ${topicsTable} GROUP BY chapter ORDER BY chapter`
+		);
+		const availability = {};
+		for (const row of result.rows) {
+			availability[Number(row.chapter)] = Number(row.topic_count) > 0;
+		}
+		return res.json({ course, availability });
+	} catch (err) {
+		console.error("Error fetching topic availability:", err);
+		return res.status(500).json({ error: "Internal server error." });
+	}
+});
+
+
 // ============================ user profile ============================ //
 
 // record topic progress
@@ -886,6 +926,53 @@ app.get("/api/stats/:course/:email", async (req, res) => {
         return res.status(500).json({ error: "Internal server error." });
     }
 });
+
+// ============================ account deletion ============================ //
+const handleDeleteAccount = async (req, res) => {
+	const { email } = req.body || {};
+	if (!email || typeof email !== "string") {
+		return res.status(400).json({ error: "Missing or invalid email address." });
+	}
+
+	const normalizedEmail = email.trim().toLowerCase();
+
+	const client = await pool.connect();
+	try {
+		await client.query("BEGIN");
+
+		// 1. Delete user progress data
+		await client.query(
+			"DELETE FROM public.user_topic_progress WHERE LOWER(email) = $1",
+			[normalizedEmail]
+		);
+
+		// 2. Delete user feedback submissions
+		await client.query(
+			"DELETE FROM public.feedback WHERE LOWER(user_email) = $1",
+			[normalizedEmail]
+		);
+
+		// 3. Delete user authentication record (cascades to session and account tables)
+		await client.query(
+			'DELETE FROM neon_auth."user" WHERE LOWER(email) = $1',
+			[normalizedEmail]
+		);
+
+		await client.query("COMMIT");
+		console.log(`[Account] Successfully deleted all data for user: ${normalizedEmail}`);
+		return res.json({ success: true, message: "Account and all associated data deleted successfully." });
+	} catch (err) {
+		await client.query("ROLLBACK");
+		console.error("Error deleting user account:", err);
+		return res.status(500).json({ error: "Internal server error deleting account." });
+	} finally {
+		client.release();
+	}
+};
+
+app.delete("/api/account", handleDeleteAccount);
+app.post("/api/account/delete", handleDeleteAccount);
+
 // Catch-all route for React Router (must be AFTER all API routes)
 app.get(/.*/, (req, res) => {
     res.sendFile(path.join(__dirname, "../frontend/dist/index.html"));

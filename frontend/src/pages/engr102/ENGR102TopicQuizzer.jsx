@@ -72,8 +72,8 @@ const renderFormattedText = (text) => {
 
     return blockParts.map((blockChunk, blockIdx) => {
         if (blockIdx % 2 === 1) {
-            // Code Block: strip language identifier (e.g. 'python', 'py') at start with or without newline
-            let codeContent = blockChunk.replace(/^(python|py|js|javascript|bash|sh|c|cpp|java|html|css)\b[\s\n]*/i, '');
+            // Code Block: strip language identifier (e.g. 'text', 'python', 'py') at start with or without newline
+            let codeContent = blockChunk.replace(/^(?:[a-zA-Z0-9_+#.-]+[ \t]*\r?\n|(?:python|py|text|plaintext|txt|output|input|console|bash|sh|c|cpp|java|html|css|json|sql)\b[\s\n]*|\n+)/i, '');
             codeContent = codeContent.replace(/^\n+|\n+$/g, '');
 
             return (
@@ -118,6 +118,7 @@ const ENGR102TopicQuizzer = () => {
 
     const [user, setUser] = useState(null);
     const [error, setError] = useState(null);
+    const [topicAvailability, setTopicAvailability] = useState(null); // { [chapterId]: boolean }
     const [selectedTopics, setSelectedTopics] = useState(() => {
         try { return JSON.parse(sessionStorage.getItem('quizzer_selectedTopics')) || []; }
         catch { return []; }
@@ -137,6 +138,20 @@ const ENGR102TopicQuizzer = () => {
         return sessionStorage.getItem('quizzer_explanationText') || '';
     });
     const navigate = useNavigate();
+
+    // Fetch topic availability from backend on mount
+    useEffect(() => {
+        fetch('/api/engr102/topics/availability')
+            .then(res => res.json())
+            .then(data => {
+                if (data.availability) {
+                    setTopicAvailability(data.availability);
+                    // Remove any previously selected topics that are now unavailable
+                    setSelectedTopics(prev => prev.filter(id => data.availability[String(id)] !== false));
+                }
+            })
+            .catch(err => console.warn('[Availability] Failed to fetch topic availability:', err));
+    }, []);
 
     // [chapter, topic, topic name, question JSON, current answer, isAnsweredCorrectly, hasFailed, hasRecordedWrong]
     const [currentQuestion, setCurrentQuestion] = useState(() => {
@@ -333,6 +348,14 @@ const ENGR102TopicQuizzer = () => {
                     if (submitBtn) submitBtn.hidden = true;
                     if (nextBtn)   nextBtn.hidden   = false;
                     if (expEl)     expEl.hidden     = false;
+                    const showAnsBtn = document.getElementById('show-answer');
+                    if (showAnsBtn) {
+                        showAnsBtn.hidden = true;
+                        showAnsBtn.style.display = 'none';
+                    }
+                    if (savedQ[4] && savedQ[3]?.type === 'code_writing') {
+                        updateLineCount(savedQ[4]);
+                    }
                 } else {
                     start_question_setup(savedQ);
                 }
@@ -357,7 +380,17 @@ const ENGR102TopicQuizzer = () => {
 
     const { fetchQuestionData, prefetch, consumePrefetch, clearPrefetch } = useQuizFetch();
 
+    const isTopicAvailable = (topicId) => {
+        // If availability data hasn't loaded yet, assume all topics are available (graceful fallback)
+        if (!topicAvailability) return true;
+        // Chapters missing from the response have zero rows in the DB → unavailable
+        return topicAvailability[String(topicId)] === true;
+    };
+
+    const availableTopics = TOPICS.filter(t => isTopicAvailable(t.id));
+
     const toggleTopic = (topicId) => {
+        if (!isTopicAvailable(topicId)) return; // Prevent selecting unavailable topics
         clearPrefetch('topicQuizzer');
         setSelectedTopics((prev) =>
             prev.includes(topicId)
@@ -368,10 +401,12 @@ const ENGR102TopicQuizzer = () => {
 
     const toggleAll = () => {
         clearPrefetch('topicQuizzer');
-        if (selectedTopics.length === TOPICS.length) {
+        const availableIds = availableTopics.map(t => t.id);
+        const allAvailableSelected = availableIds.every(id => selectedTopics.includes(id));
+        if (allAvailableSelected) {
             setSelectedTopics([]);
         } else {
-            setSelectedTopics(TOPICS.map((t) => t.id));
+            setSelectedTopics(availableIds);
         }
     };
 
@@ -471,7 +506,7 @@ const ENGR102TopicQuizzer = () => {
         return qData;
     };
 
-    const allSelected = selectedTopics.length === TOPICS.length;
+    const allSelected = availableTopics.length > 0 && availableTopics.every(t => selectedTopics.includes(t.id));
     const allTypesSelected = selectedTypes.length === Object.keys(QUESTION_TYPE_LABELS).length;
     const moduleUrl = currentQuestion[0] ? `/engr102/module${currentQuestion[0]}` : null;
 
@@ -528,6 +563,7 @@ const ENGR102TopicQuizzer = () => {
     };
 
     const mc_select = (choice) => {
+        if (currentQuestion[5]) return;
         // set current question state with selected choice
         setCurrentQuestion(prev => [prev[0], prev[1], prev[2], prev[3], choice, prev[5], prev[6], prev[7]]);
         const submitBtn = document.getElementById('submit');
@@ -537,6 +573,7 @@ const ENGR102TopicQuizzer = () => {
     };
 
     const mc_check = async () => {
+        if (currentQuestion[5]) return;
         // check if current answer equals correct answer
         if (currentQuestion[4] === currentQuestion[3].correct_answer) {
             // UI: Keep selected styling (maroon)
@@ -611,6 +648,7 @@ const ENGR102TopicQuizzer = () => {
         .trim();
 
     const sa_check = () => {
+        if (currentQuestion[5]) return;
         const userVal = cleanAnswerStr(document.getElementById('sa_answer')?.value);
         if (!userVal) {
             setExplanationText("Please enter an answer.");
@@ -708,6 +746,7 @@ const ENGR102TopicQuizzer = () => {
     }
 */
     const handleCodeWritingKeyDown = (e) => {
+        if (currentQuestion[5]) return;
         if (e.key === 'Tab') {
             e.preventDefault();
             const { selectionStart, selectionEnd, value } = e.target;
@@ -760,6 +799,7 @@ const ENGR102TopicQuizzer = () => {
     };
 
     const cw_check = async () => {
+        if (currentQuestion[5]) return;
         const user_answer = document.getElementById('cw_answer')?.value;
         if (!user_answer || user_answer.trim() === "") {
             setExplanationText("Please enter an answer.");
@@ -875,6 +915,7 @@ const ENGR102TopicQuizzer = () => {
     };
 
     const ma_select = (choice) => {
+        if (currentQuestion[5]) return;
         // check if choice is already selected (then deselect)
         // set current question state with selected choice
         setCurrentQuestion(prev => {
@@ -893,6 +934,7 @@ const ENGR102TopicQuizzer = () => {
     };
 
     const ma_check = () => {
+        if (currentQuestion[5]) return;
         // check if the answer is correct
         let is_correct = true;
         let currentSelected = Array.isArray(currentQuestion[4]) ? currentQuestion[4] : [];
@@ -946,7 +988,7 @@ const ENGR102TopicQuizzer = () => {
         } else if (qData.type === 'multiple_answer') {
             const correctList = qData.correct_answers || [];
             document.querySelectorAll('.ma_option').forEach(btn => {
-                const choiceKey = btn.innerText?.trim()?.charAt(0);
+                const choiceKey = btn.getAttribute('data-key') || btn.innerText?.trim()?.charAt(0);
                 if (correctList.includes(choiceKey)) {
                     btn.style.backgroundColor = '#4caf50';
                     btn.style.color = '#fff';
@@ -985,16 +1027,13 @@ const ENGR102TopicQuizzer = () => {
 
     return (
         <div className="min-h-screen bg-so-bg text-so-text-body pb-24">
-            {/* Top brand accent stripe */}
-            <div className="h-0.5 bg-[#500000]" />
-
             {/* Header Banner */}
             <header className="border-b border-so-border bg-[#161616] py-8 px-4 sm:px-6 mb-8 text-center">
                 <div className="max-w-4xl mx-auto">
                     <div className="flex items-center justify-center gap-2 text-xs text-so-text-muted mb-3 font-mono">
-                        <Link to="/home" className="hover:text-white transition-colors">Home</Link>
+                        <Link to="/home" className="hover:text-slate-900 dark:hover:text-white transition-colors">Home</Link>
                         <span>/</span>
-                        <Link to="/engr102" className="hover:text-white transition-colors">ENGR 102</Link>
+                        <Link to="/engr102" className="hover:text-slate-900 dark:hover:text-white transition-colors">ENGR 102</Link>
                         <span>/</span>
                         <span className="text-white font-semibold">Topic Quizzer</span>
                     </div>
@@ -1027,30 +1066,34 @@ const ENGR102TopicQuizzer = () => {
                     }}>
                         {TOPICS.map((topic) => {
                             const isSelected = selectedTopics.includes(topic.id);
+                            const available = isTopicAvailable(topic.id);
                             return (
                                 <button
                                     key={topic.id}
-                                    className={`topic-card${isSelected ? " selected" : ""}`}
+                                    className={`topic-card${isSelected ? " selected" : ""}${!available ? " unavailable" : ""}`}
                                     onClick={() => toggleTopic(topic.id)}
+                                    disabled={!available}
+                                    title={!available ? "No content available yet for this chapter" : ""}
                                 >
                                     <span className="topic-number">Chapter {topic.id}</span>
                                     <span className="topic-name">{topic.title}</span>
+                                    {!available && <span className="topic-unavailable-badge">No Content</span>}
                                 </button>
                             );
                         })}
                     </div>
 
-                    <div style={{ marginTop: "20px", color: "#aaa", fontSize: "0.9rem" }}>
-                        {selectedTopics.length} of {TOPICS.length} topics selected
+                    <div className="mt-5 text-sm font-mono text-slate-500 dark:text-zinc-400">
+                        {selectedTopics.length} of {availableTopics.length} topics selected
                     </div>
 
                     {/* Question Type Selection */}
                     <div style={{ marginTop: "32px", textAlign: "left" }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
-                            <h3 style={{ margin: 0, fontSize: "1rem", color: "#ccc" }}>Question Types</h3>
+                            <h3 className="m-0 text-base font-semibold text-slate-800 dark:text-zinc-300">Question Types</h3>
                             <button
                                 className="toggle-all-btn"
-                                style={{ padding: "4px 12px", fontSize: "0.8rem" }}
+                                style={{ padding: "4px 12px", fontSize: "0.8rem", marginBottom: 0 }}
                                 onClick={toggleAllTypes}
                             >
                                 {allTypesSelected ? "Deselect All" : "Select All"}
@@ -1075,7 +1118,7 @@ const ENGR102TopicQuizzer = () => {
                                 );
                             })}
                         </div>
-                        <div style={{ marginTop: "8px", color: selectedTypes.length === 0 ? "#e07070" : "#aaa", fontSize: "0.85rem" }}>
+                        <div className={`mt-2 text-xs font-mono ${selectedTypes.length === 0 ? "text-red-500 font-semibold" : "text-slate-500 dark:text-zinc-400"}`}>
                             {selectedTypes.length === 0
                                 ? "⚠ Select at least one question type"
                                 : `${selectedTypes.length} of ${Object.keys(QUESTION_TYPE_LABELS).length} question types selected`
@@ -1151,13 +1194,16 @@ const ENGR102TopicQuizzer = () => {
                     {currentQuestion[3]?.type === 'multiple_choice' && currentQuestion[3]?.options && (
                         <div className='block' id='multiple choice'>
                             {Object.entries(currentQuestion[3].options).map(([key, value]) => (
-                                <div key={key} style={{ margin: "8px 0" }}>
+                                <div key={key} style={{ margin: "10px 0" }}>
                                     <button
                                         id={`mc${key}`}
+                                        data-key={key}
                                         className={`mc_option ${currentQuestion[4] === key ? 'selected' : ''}`}
+                                        disabled={Boolean(currentQuestion[5])}
                                         onClick={() => mc_select(key)}
                                     >
-                                        {key}. {renderFormattedText(value)}
+                                        <span className="mc_key">{key}</span>
+                                        <span className="mc_text">{renderFormattedText(value)}</span>
                                     </button>
                                 </div>
                             ))}
@@ -1172,7 +1218,10 @@ const ENGR102TopicQuizzer = () => {
                                 className='sa_box'
                                 placeholder='Your answer here'
                                 value={currentQuestion[4] || ''}
+                                disabled={Boolean(currentQuestion[5])}
+                                readOnly={Boolean(currentQuestion[5])}
                                 onChange={(e) => {
+                                    if (currentQuestion[5]) return;
                                     const val = e.target.value;
                                     setCurrentQuestion(prev => [prev[0], prev[1], prev[2], prev[3], val, prev[5], prev[6], prev[7]]);
                                 }}
@@ -1194,8 +1243,11 @@ const ENGR102TopicQuizzer = () => {
                                     className='cw_box'
                                     ref={textareaRef}
                                     value={currentQuestion[4] || ''}
+                                    disabled={Boolean(currentQuestion[5])}
+                                    readOnly={Boolean(currentQuestion[5])}
                                     onKeyDown={handleCodeWritingKeyDown}
                                     onChange={(e) => {
+                                        if (currentQuestion[5]) return;
                                         const val = e.target.value;
                                         updateLineCount(val);
                                         setCurrentQuestion(prev => [prev[0], prev[1], prev[2], prev[3], val, prev[5], prev[6], prev[7]]);
@@ -1214,7 +1266,12 @@ const ENGR102TopicQuizzer = () => {
                                     className='cw_stdin_box'
                                     placeholder={"e.g.\nAlice\n25\n3.14"}
                                     value={stdinValue}
-                                    onChange={(e) => setStdinValue(e.target.value)}
+                                    disabled={Boolean(currentQuestion[5])}
+                                    readOnly={Boolean(currentQuestion[5])}
+                                    onChange={(e) => {
+                                        if (currentQuestion[5]) return;
+                                        setStdinValue(e.target.value);
+                                    }}
                                 />
                             </div>
 
@@ -1260,20 +1317,23 @@ const ENGR102TopicQuizzer = () => {
                     {currentQuestion[3]?.type === 'multiple_answer' && currentQuestion[3]?.options && (
                         <div className='block' id='multiple answer'>
                             {Object.entries(currentQuestion[3].options).map(([key, value]) => (
-                                <div key={key} style={{ margin: "8px 0" }}>
+                                <div key={key} style={{ margin: "10px 0" }}>
                                     <button
                                         id={`ma${key}`}
+                                        data-key={key}
                                         className={`ma_option ${Array.isArray(currentQuestion[4]) && currentQuestion[4].includes(key) ? 'selected' : ''}`}
+                                        disabled={Boolean(currentQuestion[5])}
                                         onClick={() => ma_select(key)}
                                     >
-                                        {key}. {renderFormattedText(value)}
+                                        <span className="mc_key">{key}</span>
+                                        <span className="mc_text">{renderFormattedText(value)}</span>
                                     </button>
                                 </div>
                             ))}
                         </div>
                     )}
 
-                    <p id='explanation' hidden={true}>{renderFormattedText(explanationText)}</p>
+                    <div id='explanation' hidden={true}>{renderFormattedText(explanationText)}</div>
 
                     {/* Read About It — always visible during quiz */}
                     {moduleUrl && (

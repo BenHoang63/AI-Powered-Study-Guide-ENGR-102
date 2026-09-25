@@ -16,6 +16,7 @@ import {
 import { authClient } from '../../scripts/auth';
 import { isAuthorized, isDemoMode } from '../../scripts/demo';
 import { MODULES } from './modules/index.js';
+import Footer from '../../components/Footer.jsx';
 
 const ENGR102Home = () => {
     const [user, setUser] = useState(null);
@@ -42,15 +43,12 @@ const ENGR102Home = () => {
     }, [navigate]);
 
     return (
-        <div className="min-h-screen bg-so-bg text-so-text-body pb-24">
-            {/* Top brand accent stripe */}
-            <div className="h-0.5 bg-[#500000]" />
-
+        <div className="min-h-screen bg-so-bg text-so-text-body flex flex-col justify-between">
             {/* Header / Breadcrumbs */}
             <div className="border-b border-so-border bg-[#161616] py-8 px-4 sm:px-6">
                 <div className="max-w-6xl mx-auto">
                     <div className="flex items-center gap-2 text-xs text-so-text-muted mb-3 font-mono">
-                        <Link to="/home" className="hover:text-white transition-colors">Home</Link>
+                        <Link to="/home" className="hover:text-slate-900 dark:hover:text-white transition-colors">Home</Link>
                         <span>/</span>
                         <span className="text-white font-semibold">ENGR 102</span>
                     </div>
@@ -70,7 +68,7 @@ const ENGR102Home = () => {
                     <div className="flex items-center justify-between border-b border-so-border pb-2 mb-3">
                         <div>
                             <h2 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                                <PenLine className="w-4 h-4 text-white" />
+                                {/* <PenLine className="w-4 h-4 text-white" /> */}
                                 <span>Quizzer</span>
                             </h2>
                         </div>
@@ -109,7 +107,7 @@ const ENGR102Home = () => {
                     <div className="flex items-center justify-between mb-4 border-b border-so-border pb-2">
                         <div>
                             <h2 className="text-sm font-bold text-white tracking-tight flex items-center gap-2 uppercase tracking-wider text-xs">
-                                <FileText className="w-4 h-4 text-white" />
+                                {/* <FileText className="w-4 h-4 text-white" /> */}
                                 <span>Exam Prep</span>
                             </h2>
                         </div>
@@ -120,10 +118,10 @@ const ENGR102Home = () => {
                         {/* Exam 1 Practice */}
                         <div className="so-card p-5 border-so-border flex flex-col justify-between">
                             <div>
-                                <div className="flex items-center justify-between text-xs text-so-text-muted mb-2">
+                                {/* <div className="flex items-center justify-between text-xs text-so-text-muted mb-2">
                                     <span className="font-mono text-[#fca5a5] font-semibold">MIDTERM EXAM</span>
                                     <span>Weekly Modules 1–7</span>
-                                </div>
+                                </div> */}
                                 <h3 className="text-base font-bold text-white mb-1.5">
                                     Midterm Exam Prep: Fundamentals & Iteration
                                 </h3>
@@ -154,10 +152,10 @@ const ENGR102Home = () => {
                         {/* Exam 2 Practice */}
                         <div className="so-card p-5 border-so-border flex flex-col justify-between">
                             <div>
-                                <div className="flex items-center justify-between text-xs text-so-text-muted mb-2">
-                                    <span className="font-mono text-[#7aa7c7] font-semibold">FINAL EXAM</span>
+                                {/* <div className="flex items-center justify-between text-xs text-so-text-muted mb-2">
+                                    <span className="font-mono text-[#fca5a5] font-semibold">FINAL EXAM</span>
                                     <span>Comprehensive (Modules 1–12)</span>
-                                </div>
+                                </div> */}
                                 <h3 className="text-base font-bold text-white mb-1.5">
                                     Final Exam Prep: Functions & Files
                                 </h3>
@@ -193,7 +191,7 @@ const ENGR102Home = () => {
                     <div className="flex items-center justify-between mb-4 border-b border-so-border pb-2">
                         <div>
                             <h2 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                                <BookOpen className="w-4 h-4 text-white" />
+                                {/* <BookOpen className="w-4 h-4 text-white" /> */}
                                 <span>Modules</span>
                             </h2>
                         </div>
@@ -229,13 +227,13 @@ const ENGR102Home = () => {
                 {/* 3. Runtime Guide */}
                 <section className="so-card p-5 border-so-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex items-start gap-3">
-                        <div className="w-9 h-9 rounded bg-so-surface border border-so-border flex items-center justify-center shrink-0">
+                        {/* <div className="w-9 h-9 rounded bg-so-surface border border-so-border flex items-center justify-center shrink-0">
                             <Terminal className="w-4 h-4 text-white" />
-                        </div>
+                        </div> */}
                         <div>
                             <h4 className="text-xs font-semibold text-white">Browser Python Execution (Pyodide WebAssembly)</h4>
                             <p className="text-xs text-so-text-muted mt-0.5">
-                                Learn how browser-based standard input (stdin) simulation evaluates your code writing submissions locally.
+                                Guide on how to use stdin to run your code in the topic quizzer.
                             </p>
                         </div>
                     </div>
@@ -249,6 +247,8 @@ const ENGR102Home = () => {
                 </section>
 
             </main>
+
+            <Footer className="mt-12" />
         </div>
     );
 };
