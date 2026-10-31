@@ -47,7 +47,8 @@ const renderFormattedText = (text) => {
 
     return blockParts.map((blockChunk, blockIdx) => {
         if (blockIdx % 2 === 1) {
-            let codeContent = blockChunk.replace(/^(python|py|js|javascript|bash|sh|c|cpp|java|html|css)\b[\s\n]*/i, '');
+            // Code Block: strip language identifier (e.g. 'text', 'python', 'py') at start with or without newline
+            let codeContent = blockChunk.replace(/^(?:[a-zA-Z0-9_+#.-]+[ \t]*\r?\n|(?:python|py|text|plaintext|txt|output|input|console|bash|sh|c|cpp|java|html|css|json|sql)\b[\s\n]*|\n+)/i, '');
             codeContent = codeContent.replace(/^\n+|\n+$/g, '');
             return (
                 <pre key={`block-${blockIdx}`} className="code block-code">
@@ -97,7 +98,12 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
     });
     const [loading, setLoading]                 = useState(false);
     const [prefetchLoading, setPrefetchLoading] = useState(false);
-    const [explanationText, setExplanationText] = useState('');
+    const [isAnswerCorrect, setIsAnswerCorrect] = useState(() => {
+        return sessionStorage.getItem(`${storageKey}_isCorrect`) === 'true';
+    });
+    const [explanationText, setExplanationText] = useState(() => {
+        return sessionStorage.getItem(`${storageKey}_explanation`) || '';
+    });
     const [pdfOpen, setPdfOpen]                 = useState(false);
     const [checkingCode, setCheckingCode]       = useState(false);
     const [cwCooldown, setCwCooldown]           = useState(0);
@@ -156,13 +162,38 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
 
     useEffect(() => {
         sessionStorage.setItem(`${storageKey}_started`, quizStarted);
-    }, [quizStarted]);
+    }, [quizStarted, storageKey]);
+
+    useEffect(() => {
+        sessionStorage.setItem(`${storageKey}_isCorrect`, String(isAnswerCorrect));
+    }, [isAnswerCorrect, storageKey]);
+
+    useEffect(() => {
+        sessionStorage.setItem(`${storageKey}_explanation`, explanationText);
+    }, [explanationText, storageKey]);
 
     useEffect(() => {
         if (quizStarted && (!currentQuestion || !currentQuestion[3]?.question)) {
             getQuestion().then((q) => { if (q) cw_setup(q); });
         } else if (quizStarted && currentQuestion) {
-            setTimeout(() => cw_setup(), 50);
+            setTimeout(() => {
+                if (sessionStorage.getItem(`${storageKey}_isCorrect`) === 'true') {
+                    const exp = document.getElementById('eq-explanation');
+                    if (exp) exp.hidden = false;
+                    const sub = document.getElementById('eq-submit');
+                    if (sub) sub.hidden = true;
+                    const nxt = document.getElementById('eq-next');
+                    if (nxt) nxt.hidden = false;
+                    const savedCode = currentQuestion?.[4] || '';
+                    const cw = document.getElementById('cw_answer');
+                    if (cw) {
+                        cw.value = savedCode;
+                        updateLineCount(savedCode);
+                    }
+                } else {
+                    cw_setup();
+                }
+            }, 50);
         }
     }, []);
 
@@ -207,6 +238,7 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
     };
 
     const cw_setup = (qData = currentQuestion) => {
+        setIsAnswerCorrect(false);
         const savedCode = qData?.[4] || '';
         const cw = document.getElementById('cw_answer');
         if (cw) {
@@ -225,7 +257,7 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
     };
 
     const handleCodeWritingKeyDown = (e) => {
-        if (e.key !== 'Tab') return;
+        if (isAnswerCorrect || e.key !== 'Tab') return;
         e.preventDefault();
         const { selectionStart, selectionEnd, value } = e.target;
         const indent = '    ';
@@ -262,6 +294,7 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
     };
 
     const cw_check = async () => {
+        if (isAnswerCorrect) return;
         const user_answer = document.getElementById('cw_answer')?.value;
         if (!user_answer?.trim()) {
             setExplanationText('Please enter an answer.');
@@ -292,6 +325,7 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
             }
             const data = await res.json();
             if (data.is_correct) {
+                setIsAnswerCorrect(true);
                 setExplanationText(`Correct! ${data.explanation || ''}`);
                 document.getElementById('eq-explanation').hidden = false;
                 document.getElementById('eq-submit').hidden = true;
@@ -316,6 +350,9 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
     const startQuiz = async (isFirst = false) => {
         setLoading(true);
         setQuizStarted(true);
+        setIsAnswerCorrect(false);
+        sessionStorage.removeItem(`${storageKey}_isCorrect`);
+        sessionStorage.removeItem(`${storageKey}_explanation`);
         const qData = await getQuestion(isFirst);
         setLoading(false);
         if (qData) {
@@ -330,11 +367,14 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
     const resetQuiz = () => {
         clearCwCooldown();
         setCheckingCode(false);
+        setIsAnswerCorrect(false);
         setQuizStarted(false);
         setCurrentQuestion(null);
         setExplanationText('');
         sessionStorage.removeItem(`${storageKey}_question`);
-        sessionStorage.setItem(`${storageKey}_started`, 'false');
+        sessionStorage.removeItem(`${storageKey}_started`);
+        sessionStorage.removeItem(`${storageKey}_isCorrect`);
+        sessionStorage.removeItem(`${storageKey}_explanation`);
         nextQuestionPromiseRef.current = null;
     };
 
@@ -345,10 +385,12 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
     return (
         <div className="eq-root">
 
-            <header className="eq-header">
-                <h1>{examName} Practice</h1>
+            <div className="eq-header">
+                <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
+                    {examName} Review
+                </h1>
                 {/* <p className="eq-subtitle">Code-writing questions drawn from {chapterRange}</p> */}
-            </header>
+            </div>
 
             {/* PDF Review Sheet */}
             <div className="eq-pdf-bar">
@@ -395,17 +437,6 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
                             ← Back to Start
                         </button>
 
-                        {currentQuestion && (
-                            <span className="eq-topic-label">
-                                <p></p>
-                                <h2>
-                                    {/* <span className="definition">
-                                        Topic {currentQuestion[0]}.{currentQuestion[1]}
-                                    </span> */}
-                                    &nbsp;{currentQuestion[2]}
-                                </h2>
-                            </span>
-                        )}
                     </div>
 
                     <div className="eq-question-box">
@@ -434,8 +465,14 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
                                     className="cw_box"
                                     ref={textareaRef}
                                     value={currentQuestion?.[4] || ''}
-                                    onKeyDown={handleCodeWritingKeyDown}
+                                    disabled={isAnswerCorrect}
+                                    readOnly={isAnswerCorrect}
+                                    onKeyDown={(e) => {
+                                        if (isAnswerCorrect) return;
+                                        handleCodeWritingKeyDown(e);
+                                    }}
                                     onChange={(e) => {
+                                        if (isAnswerCorrect) return;
                                         const val = e.target.value;
                                         updateLineCount(val);
                                         setCurrentQuestion(prev => [prev[0], prev[1], prev[2], prev[3], val]);
@@ -449,9 +486,9 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
                         </div>
                     )}
 
-                    <p id="eq-explanation" hidden={true} className="eq-explanation">
+                    <div id="eq-explanation" hidden={true} className="eq-explanation">
                         {renderFormattedText(explanationText)}
-                    </p>
+                    </div>
 
                     {currentQuestion && (
                         <div className="eq-btn-row">
@@ -477,6 +514,9 @@ const ExamQuizzer = ({ examName, chapters, pdfUrl, storageKey }) => {
                                 onClick={async () => {
                                     clearCwCooldown();
                                     setCheckingCode(false);
+                                    setIsAnswerCorrect(false);
+                                    sessionStorage.removeItem(`${storageKey}_isCorrect`);
+                                    sessionStorage.removeItem(`${storageKey}_explanation`);
                                     setCurrentQuestion(null);
                                     document.getElementById('eq-next').hidden = true;
                                     document.getElementById('eq-submit').hidden = false;

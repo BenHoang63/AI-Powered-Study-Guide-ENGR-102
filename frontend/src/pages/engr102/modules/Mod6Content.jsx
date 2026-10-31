@@ -1,55 +1,11 @@
-import { authClient } from '../../scripts/auth';
-import { isAuthorized, isDemoMode } from '../../scripts/demo';
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import '../../styles/styles.css';
-
-
-const ENGR102Mod6 = () => {
-
-    const [user, setUser] = useState(null);
-    const [error, setError] = useState(null);
-    const navigate = useNavigate();
-
-
-    useEffect(() => {
-        authClient.getSession().then(({ data }) => {
-            if (data?.user) {
-                // Check if TAMU email
-                if (isAuthorized(data.user.email)) {
-                    setUser(data.user);
-                    return;
-                } else {
-                    // Not a TAMU student — sign them out
-                    console.log("Not a TAMU student:", data.user.email);
-                    setError("Please sign in with your @tamu.edu email.");
-                    authClient.signOut();
-                }
-            } else if (!isDemoMode()) {
-                navigate('/');
-            }
-        });
-    }, []);
+// Auto-extracted and cleaned content for ENGR 102 Module 6
+export default function Mod6Content() {
     return (
-        <>
-
-            
-            <header id="center" style={{ textAlign: "center", margin: "auto"}}>
-                <h1>Module 6 : Loops</h1>
-            </header>
-
-            <section id="center">
-                <div style={{
-                    padding: "auto",
-                    textAlign: "left",
-                    width: "60%",
-                    margin: "auto",
-                    marginBottom: "500px"
-                }}>
-                    <p>Welcome to Module 6! This one's about loops, which allows to repeat a set of code based on a condition.</p>
+        <div className="space-y-6 text-so-text-body text-sm leading-relaxed">
+            <p>Welcome to Module 6! This one's about loops, which allows to repeat a set of code based on a condition.</p>
                     <h2>While Loops</h2>
                     <div className="block">
-                        <p>The simplest form of a loop is a <a className="definition">while loop</a>. It operates by checking a condition, and 
+                        <p>The simplest form of a loop is a <span className="definition">while loop</span>. It operates by checking a condition, and 
                         if the condition is true, it will execute the code inside the loop. It will continue to do this until the 
                         condition is false.</p>
                         <div className="code">
@@ -67,7 +23,7 @@ const ENGR102Mod6 = () => {
                         <p>Note that the code inside of the loop is indented. Anything that is not indented will not be ran as 
                             part of the loop.
                         </p>
-                        <p>An <a className="definition">infinite loop</a> is a loop that will run forever. This can happen if the condition 
+                        <p>An <span className="definition">infinite loop</span> is a loop that will run forever. This can happen if the condition 
                             of the loop is always true. It's also a good way to crash your program 👀
                         </p>
                         <div className="code">
@@ -84,7 +40,7 @@ const ENGR102Mod6 = () => {
 
                     <h2>For Loops and <code>range()</code></h2>
                     <div className="block">
-                        <p>A <a className="definition">for loop</a> is a loop that iterates over a sequence of values. It operates by 
+                        <p>A <span className="definition">for loop</span> is a loop that iterates over a sequence of values. It operates by 
                         taking each value in the sequence and executing the code inside the loop. It will continue to do this until
                         all the values in the sequence have been processed.
                         </p>
@@ -137,7 +93,7 @@ const ENGR102Mod6 = () => {
 
                     <h2>Nested Loops</h2>
                     <div className="block">
-                        <p>A <a className="definition">nested loop</a> is a loop that is inside of another loop. It operates by 
+                        <p>A <span className="definition">nested loop</span> is a loop that is inside of another loop. It operates by 
                         taking each value in the outer loop's sequence and executing the inner loop. It will continue to do this until
                         all the values in the outer loop's sequence have been processed.
                         </p>
@@ -160,7 +116,7 @@ const ENGR102Mod6 = () => {
 
                     <h2>The <code>break</code> and <code>continue</code> Statements</h2>
                     <div className="block">
-                        <p>The <a className="definition">break statement</a> is used to exit a loop early. Once
+                        <p>The <span className="definition">break statement</span> is used to exit a loop early. Once
                         the <code>break</code> statement is executed, the loop will terminate immediately and the program will 
                         continue to execute the code outside of the loop.
                         </p>
@@ -234,11 +190,6 @@ const ENGR102Mod6 = () => {
                             </ul>
                         </li>
                     </ul>
-                    
-                </div>
-            </section>
-        </>
+        </div>
     );
-
 }
-export default ENGR102Mod6;

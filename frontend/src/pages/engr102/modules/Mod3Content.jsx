@@ -1,60 +1,15 @@
-import { authClient } from '../../scripts/auth';
-import { isAuthorized, isDemoMode } from '../../scripts/demo';
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import '../../styles/styles.css';
-
-
-const ENGR102Mod3 = () => {
-
-    const [user, setUser] = useState(null);
-    const [error, setError] = useState(null);
-    const navigate = useNavigate();
-
-
-    useEffect(() => {
-        authClient.getSession().then(({ data }) => {
-            if (data?.user) {
-                // Check if TAMU email
-                if (isAuthorized(data.user.email)) {
-                    setUser(data.user);
-                    return;
-                } else {
-                    // Not a TAMU student — sign them out
-                    console.log("Not a TAMU student:", data.user.email);
-                    setError("Please sign in with your @tamu.edu email.");
-                    authClient.signOut();
-                }
-            } else if (!isDemoMode()) {
-                navigate('/');
-            }
-        });
-    }, []);
+// Auto-extracted and cleaned content for ENGR 102 Module 3
+export default function Mod3Content() {
     return (
-        <>
-
-            
-            <header id="center" style={{ textAlign: "center", margin: "auto"}}>
-                <h1>Module 3 : Types and Strings</h1>
-            </header>
-
-            <section id="center">
-                <div style={{
-                    padding: "auto",
-                    textAlign: "left",
-                    width: "60%",
-                    margin: "auto",
-                    marginBottom: "500px"
-                }}>
-                    
-                    <h2>Data Types</h2>
+        <div className="space-y-6 text-so-text-body text-sm leading-relaxed">
+            <h2>Data Types</h2>
                     <div className="block">
                         <p>We've learned about <code>int</code>, <code>float</code>, <code>bool</code>, and <code>str</code> in <a> </a>
                             <a href="/engr102/module1">module 1</a>.
                             Now let's talk more about strings. Strings are used to store text. 
                             They are created by enclosing text in quotes. 
                         </p>
-                        <p><a className="definition">Note</a>: the quotes are not part of the string itself. They are used to define the
+                        <p><span className="definition">Note</span>: the quotes are not part of the string itself. They are used to define the
                             start and end of the string. 
                         </p>
                         <p>Also, if you want to create a string that contains quotes, there are a few ways to do this.</p> 
@@ -100,7 +55,7 @@ const ENGR102Mod3 = () => {
                         
                         <h3>Type Behaviors</h3>
                         <div className="block">
-                            <p><a className='definition'>Resulting data type</a>: recall from <a href="/engr102/module1">module 1</a> that 
+                            <p><span className="definition">Resulting data type</span>: recall from <a href="/engr102/module1">module 1</a> that 
                             there are several rules about what data type you get when you do certain math operations.</p>
                             <ul>
                                 <li>Any operation involving a float will result in a float.</li>
@@ -287,12 +242,6 @@ const ENGR102Mod3 = () => {
                         <li>Know about the input function and how to use it</li>
                         <li>Know about functions and how to call them</li>
                     </ul>
-
-
-                </div>
-            </section>
-        </>
+        </div>
     );
-
 }
-export default ENGR102Mod3;

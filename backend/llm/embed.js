@@ -5,9 +5,12 @@ import path from "path";
 import readline from "readline";
 import { fileURLToPath } from "url";
 
-dotenv.config();
-
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Load .env from workspace root, backend dir, or process.cwd()
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
+dotenv.config();
 
 // ── Database connection ──
 const pool = new pg.Pool({
@@ -24,7 +27,7 @@ const EMBED_MODEL = "openai/text-embedding-3-small";
 /**
  * Generate and store an embedding for a passage in the database.
  */
-async function getEmbed(topic_name, context, example_question) {
+async function getEmbed(topic_name, context, example_question, chapter, topic) {
     const response = await fetch('https://openrouter.ai/api/v1/embeddings', {
         method: 'POST',
         headers: {
@@ -44,7 +47,11 @@ async function getEmbed(topic_name, context, example_question) {
     const embedding = data.data[0].embedding;
     const vector_string = JSON.stringify(embedding);
 
-    await pool.query("UPDATE engr102topics SET embedding = $1 WHERE topic_name = $2", [vector_string, topic_name]);
+    if (chapter !== undefined && topic !== undefined) {
+        await pool.query("UPDATE engr102topics SET embedding = $1 WHERE chapter = $2 AND topic = $3", [vector_string, chapter, topic]);
+    } else {
+        await pool.query("UPDATE engr102topics SET embedding = $1 WHERE topic_name = $2", [vector_string, topic_name]);
+    }
     return embedding;
 }
 
@@ -188,20 +195,20 @@ async function embedSingleTopic(chap, top) {
     console.log(`\nFound Topic: Chapter ${target.chapter}, Topic ${target.topic} - "${target.topic_name}"`);
     console.log(`Context preview: ${target.context.slice(0, 90).replace(/\s+/g, ' ')}...`);
 
-    // Sync context, question, and other_instruction to PostgreSQL so topics.csv edits take effect
+    // Sync topic_name, context, question, and other_instruction to PostgreSQL so topics.csv edits take effect
     if (target.context) {
         await pool.query(
             `UPDATE engr102topics 
-             SET context = $1, question = $2, other_instruction = $3 
-             WHERE chapter = $4 AND topic = $5`,
-            [target.context, target.question, target.other_instruction, target.chapter, target.topic]
+             SET topic_name = $1, context = $2, question = $3, other_instruction = $4 
+             WHERE chapter = $5 AND topic = $6`,
+            [target.topic_name, target.context, target.question, target.other_instruction, target.chapter, target.topic]
         );
-        console.log(`✓ Synced latest context and question to PostgreSQL.`);
+        console.log(`✓ Synced latest topic name, context, and question to PostgreSQL.`);
     }
 
     // Generate embedding and save to database
     console.log(`Generating embedding with ${EMBED_MODEL}...`);
-    await getEmbed(target.topic_name, target.context, target.question);
+    await getEmbed(target.topic_name, target.context, target.question, target.chapter, target.topic);
     console.log(`✅ Successfully embedded Chapter ${target.chapter}, Topic ${target.topic}: "${target.topic_name}" into the database!\n`);
     return true;
 }
@@ -230,14 +237,14 @@ async function reembedAllTopics() {
         if (fromCSV) {
             await pool.query(
                 `UPDATE engr102topics 
-                 SET context = $1, question = $2, other_instruction = $3 
-                 WHERE chapter = $4 AND topic = $5`,
-                [context, question, other_instruction, item.chapter, item.topic]
+                 SET topic_name = $1, context = $2, question = $3, other_instruction = $4 
+                 WHERE chapter = $5 AND topic = $6`,
+                [fromCSV.topic_name || item.topic_name, context, question, other_instruction, item.chapter, item.topic]
             );
         }
 
         console.log(`[${i + 1}/${allTopics.length}] Embedding Chapter ${item.chapter}.${item.topic}: "${item.topic_name}"`);
-        await getEmbed(item.topic_name, context, question);
+        await getEmbed(fromCSV?.topic_name || item.topic_name, context, question, item.chapter, item.topic);
     }
 
     console.log(`\n✅ All ${allTopics.length} topics successfully synced and embedded with ${EMBED_MODEL}!\n`);

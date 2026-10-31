@@ -1,54 +1,10 @@
-import { authClient } from '../../scripts/auth';
-import { isAuthorized, isDemoMode } from '../../scripts/demo';
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import '../../styles/styles.css';
-
-
-const ENGR102Mod2 = () => {
-
-    const [user, setUser] = useState(null);
-    const [error, setError] = useState(null);
-    const navigate = useNavigate();
-
-
-    useEffect(() => {
-        authClient.getSession().then(({ data }) => {
-            if (data?.user) {
-                // Check if TAMU email
-                if (isAuthorized(data.user.email)) {
-                    setUser(data.user);
-                    return;
-                } else {
-                    // Not a TAMU student — sign them out
-                    console.log("Not a TAMU student:", data.user.email);
-                    setError("Please sign in with your @tamu.edu email.");
-                    authClient.signOut();
-                }
-            } else if (!isDemoMode()) {
-                navigate('/');
-            }
-        });
-    }, []);
+// Auto-extracted and cleaned content for ENGR 102 Module 2
+export default function Mod2Content() {
     return (
-        <>
-
-            
-            <header id="center" style={{ textAlign: "center", margin: "auto"}}>
-                <h1>Module 2 : Variables and Expressions</h1>
-            </header>
-
-            <section id="center">
-                <div style={{
-                    padding: "auto",
-                    textAlign: "left",
-                    width: "60%",
-                    margin: "auto",
-                    marginBottom: "500px"
-                }}>
-                    <h2>Variables</h2>
+        <div className="space-y-6 text-so-text-body text-sm leading-relaxed">
+            <h2>Variables</h2>
                     <div className="block">
-                    <p>In code, a <a className="definition">variable</a> is basically a storage 
+                    <p>In code, a <span className="definition">variable</span> is basically a storage 
                     place for a value. You can think of it like a labeled box. This is a variable:</p>
                     <p className="code">x = 2</p>
                     <p>Here, the variable is named <code>x</code> and it holds the value of 2. The equals sign means we want
@@ -84,7 +40,7 @@ const ENGR102Mod2 = () => {
 
                     <h2>Expressions</h2>
                     <div className="block">
-                    <p>An <a className="definition">expression</a> is a piece of code that evaluates to a value. Think about expressions
+                    <p>An <span className="definition">expression</span> is a piece of code that evaluates to a value. Think about expressions
                     in the same way you would think about math problems. Examples:</p>
                     <div className="code">
                         x<br></br>
@@ -113,7 +69,7 @@ const ENGR102Mod2 = () => {
                             x += 1
                         </div>
                         <p>The same logic applies for subtraction, multiplication, and division.</p>
-                        <p><a className="definition">Note</a>: the specified arithmetic operator is applied after the right side of the
+                        <p><span className="definition">Note</span>: the specified arithmetic operator is applied after the right side of the
                             equals sign is evaluated.</p>
                         <p className="code">
                             x = 2<br></br>
@@ -144,11 +100,6 @@ const ENGR102Mod2 = () => {
                         
                         
                     </ul>
-
-                </div>
-            </section>
-        </>
+        </div>
     );
-
 }
-export default ENGR102Mod2;

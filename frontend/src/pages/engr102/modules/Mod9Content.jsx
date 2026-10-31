@@ -1,52 +1,8 @@
-import { authClient } from '../../scripts/auth';
-import { isAuthorized, isDemoMode } from '../../scripts/demo';
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import '../../styles/styles.css';
-
-
-const ENGR102Mod9 = () => {
-
-    const [user, setUser] = useState(null);
-    const [error, setError] = useState(null);
-    const navigate = useNavigate();
-
-
-    useEffect(() => {
-        authClient.getSession().then(({ data }) => {
-            if (data?.user) {
-                // Check if TAMU email
-                if (isAuthorized(data.user.email)) {
-                    setUser(data.user);
-                    return;
-                } else {
-                    // Not a TAMU student — sign them out
-                    console.log("Not a TAMU student:", data.user.email);
-                    setError("Please sign in with your @tamu.edu email.");
-                    authClient.signOut();
-                }
-            } else if (!isDemoMode()) {
-                navigate('/');
-            }
-        });
-    }, []);
+// Auto-extracted and cleaned content for ENGR 102 Module 9
+export default function Mod9Content() {
     return (
-        <>
-
-            
-            <header id="center" style={{ textAlign: "center", margin: "auto"}}>
-                <h1>Module 9 : User-Defined Functions & Mutable/Immutable Data Types</h1>
-            </header>
-
-            <section id="center">
-                <div style={{
-                    padding: "auto",
-                    textAlign: "left",
-                    width: "60%",
-                    margin: "auto",
-                    marginBottom: "500px"
-                }}>
-                    <p>Welcome to module 9! In here we will go over functions, as well as mutable and immutable data types.</p>
+        <div className="space-y-6 text-so-text-body text-sm leading-relaxed">
+            <p>Welcome to module 9! In here we will go over functions, as well as mutable and immutable data types.</p>
 
                     <h2>Functions</h2>
                     <div className='block'>
@@ -298,11 +254,6 @@ const ENGR102Mod9 = () => {
                         <li>Know about global and local variables</li>
                         <li>We're writing and tracing code for the quiz</li>
                     </ul>
-                    
-                </div>
-            </section>
-        </>
+        </div>
     );
-
 }
-export default ENGR102Mod9;
